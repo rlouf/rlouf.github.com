@@ -36,16 +36,71 @@
       <time class="post-date" datetime="2019-01-09 13:19:11 CET">09 Jan 2019</time>
     </header>
 
-    <p>Disclaimers:</p>
+    <h2 id="tldr">TL;DR</h2>
+<p>JAX blows everyone out of the water, up to a factor of 20x in extreme cases
+(1,000 samples with 1,000,000 chains). Numpy wins in the small number of
+samples, small number of chains regime due to JAX's JIT compilation.  TFP with
+XLA compilation shines in the small number of chains, large number of samples
+regime. I must be doing something wrong with Tensorflow Probability as the
+numbers I get otherwise are very underwhelming.</p>
+<h2 id="introduction">Introduction</h2>
+<p>I recently got very excited about the possibility to generate thousands,
+millions of sampling chains with Monte Carlo algorithms. I vaguely followed
+several discussions around the topic</p>
+<p>I have seen here and there discussion about vectorized sampling algorithms that
+were able to generate hundreds, thousands of chains in one pass.</p>
+<p>Colin Caroll posted an interesting <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
+post</a> that
+uses numpy and a vectorized version of the random walk metropolis-hastings
+(RWMH) algorithm to generate a large number of samples.</p>
+<p>Around the same time I stumbled upon <a href="http://github.com/jax/jax">JAX</a>.  Jax
+offers Just-in-Time compilation using <a href="">XLA</a>, inherits from autograd's autodiff
+functionality. It favours a functional style of programming which makes sense in
+a world where we are combining mathematical functions. I fell in love (there is
+some place left for stickers on my laptop, btw!).</p>
+<p>So, for future reference I decided to benchmark different backends:</p>
 <ul>
-<li>Yeah that's probably not the proper way to do benchmark;</li>
-<li>That's probably not a fair benchmark, I'm interested in your suggestions
-to make it more fair. In particular, tensorflow-probability is not shining
-here so I must be doing something wrong.</li>
+<li>Numpy</li>
+<li>Jax</li>
+<li>Tensorflow Probability (TFP)</li>
+<li>Tensorflow Probability with XLA compilation</li>
 </ul>
-<p>This post was inspired by Colin Caroll's <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
-post</a> on
-running a vectorized version of MCMC to get multiple chains at once.</p>
+<p>I am sampling an arbitrary Gaussian mixture with 4 components. Using Numpy:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">from</span> scipy.stats <span style="color:#f92672">import</span> norm
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">mixture_logpdf</span>(x):
+    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Log probability distribution function of a gaussian mixture model.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    x: np.ndarray (4, n_chains)</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">        Position at which to evaluate the probability density function.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    log_probs <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array(
+        [
+            norm(<span style="color:#f92672">-</span><span style="color:#ae81ff">2.0</span>, <span style="color:#ae81ff">1.2</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">0</span>]),
+            norm(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">1</span>]),
+            norm(<span style="color:#ae81ff">3.2</span>, <span style="color:#ae81ff">5</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">2</span>]),
+            norm(<span style="color:#ae81ff">2.5</span>, <span style="color:#ae81ff">2.8</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">3</span>]),
+        ]
+    )
+    weights <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>repeat(np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0.2</span>, <span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">0.4</span>]])<span style="color:#f92672">.</span>T, x<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>], axis<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>)
+    <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">-</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
+</code></pre></div><p>The code for all 3 frameworks is available in this <a href="">gist</a>.</p>
+<h2 id="notes-about-benchmarking">Notes about benchmarking</h2>
+<p>Before giving the results, a few words of caution:</p>
+<ol>
+<li>The reported times are the average of 10 runs on my laptop, with nothing
+other than the terminal open. For all but the post-compilation JAX runs,
+the times were measure by the <code>hyperfine</code> command line tool.</li>
+<li>My code is probably not optimal, especially for Numpy and TFP. I would
+appreciate tips to make the codes faster.</li>
+<li>The experiments are performed on CPU. Since JAX and TFP can run computations
+on GPU, I would expect TFP to beat Numpy in the large number of samples,
+number of shapes regime.</li>
+<li>For Numpy and JAX the sampler is a generator and the samples are not kept in
+memory. This is not the case for TFP, thus (1) the computer runs out of
+memory during big experiment (2) this might affect the performance.</li>
+</ol>
 <p>So far, running multiple chains at once was reserved to performing posterior
 checks on the convergence of algorithms, or reducing the variance (not the
 biais) of the results of Monte Carlo sampling. It was traditionally achieved by
@@ -76,81 +131,117 @@ derivatives;</li>
 <p>Colin's MiniMC is an exercise in style, the simplest and most readable
 implementation of HMC I have seen. Probably thanks to the numpy backend.
 My numpy is implementation is an iteration upon his</p>
-<h2 id="numpy">Numpy</h2>
-<p>The first step towards assessing JAX's suitability for a PPL backend</p>
-<h2 id="jax">JAX</h2>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> jax
-<span style="color:#f92672">import</span> jax.numpy <span style="color:#f92672">as</span> jnp
+<h2 id="setup-and-results">Setup and results</h2>
+<h3 id="numpy">Numpy</h3>
+<p>We implement the Random Walk Metropolis algorithm in the following,
+uncontroversial way:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
 
-<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rwmh_step</span>(rng_key, num_vars, num_chains, likelihood_fn, state, likelihood):
-    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Updates the state with the Randow Walk Metropolis Hastings algorithm.</span><span style="color:#e6db74">
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_sampler</span>(logpdf, initial_position):
+    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Generate samples using the Random Walk Metropolis algorithm.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    Attributes</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    ----------</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    logpdf: function</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">      Returns the log-probability of the model given a position.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    initial_position: np.ndarray, shape (n_dims, n_chains)</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">      The initial position for each chain.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    Yields</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    ------</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    np.ndarray, shape (,n_chains)</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">      The new position of each chain.</span><span style="color:#e6db74">
 </span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
-    <span style="color:#75715e"># Propose a new state</span>
-    step_sizes <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>normal(rng_key, shape<span style="color:#f92672">=</span>(num_vars, num_chains)) <span style="color:#f92672">*</span> <span style="color:#ae81ff">0.9</span>
-    proposal_state <span style="color:#f92672">=</span> state <span style="color:#f92672">+</span> step_sizes
-    proposal_likelihood <span style="color:#f92672">=</span> log_prob(new_state)
+    position <span style="color:#f92672">=</span> initial_position
+    log_prob <span style="color:#f92672">=</span> logpdf(initial_position)
+    <span style="color:#66d9ef">yield</span> position
 
-    log_unif <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>log(jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>uniform(rng_key, shape<span style="color:#f92672">=</span>(num_vars, num_chains)))
-    do_accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_likelihood <span style="color:#f92672">-</span> likelihood
-    new_state <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>where(do_accept, proposal_state, state)
-    new_likelihood <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>where(do_accept, proposal_likelihood, likelihood)
-
-    <span style="color:#66d9ef">return</span> new_state, new_likelihood
-
-<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">sample</span>(rng_key, likelihood_fn, num_vars, num_chains, initial_state):
-    state <span style="color:#f92672">=</span> initial_state
-    likelihood <span style="color:#f92672">=</span> likelihood_fn(state)
-
-    step <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>jit(rwmh_step, static_argnums<span style="color:#f92672">=</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>))
     <span style="color:#66d9ef">while</span> True:
-      state, likelihood <span style="color:#f92672">=</span> step(rng_key, num_vars, num_chains, likelihood_fn, state, likelihood)
-      <span style="color:#66d9ef">yield</span> sample
-</code></pre></div><p>The sampler is a python generator. In order of importance:</p>
+        move_proposals <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>normal(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0.1</span>, size<span style="color:#f92672">=</span>initial_position<span style="color:#f92672">.</span>shape)
+        proposal <span style="color:#f92672">=</span> position <span style="color:#f92672">+</span> move_proposals
+        proposal_log_prob <span style="color:#f92672">=</span> logpdf(proposal)
+
+        log_unif <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>rand(initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">0</span>], initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>]))
+        accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
+
+        position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal, position)
+        log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal_log_prob, log_prob)
+        <span style="color:#66d9ef">yield</span> position
+</code></pre></div><h3 id="jax">JAX</h3>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> functools <span style="color:#f92672">import</span> partial
+
+<span style="color:#f92672">import</span> jax
+<span style="color:#f92672">import</span> jax.numpy <span style="color:#f92672">as</span> np
+
+<span style="color:#a6e22e">@partial</span>(jax<span style="color:#f92672">.</span>jit, static_argnums<span style="color:#f92672">=</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>))
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_kernel</span>(rng_key, logpdf, position, log_prob):
+    move_proposals <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>normal(rng_key, shape<span style="color:#f92672">=</span>position<span style="color:#f92672">.</span>shape) <span style="color:#f92672">*</span> <span style="color:#ae81ff">0.1</span>
+    proposal <span style="color:#f92672">=</span> position <span style="color:#f92672">+</span> move_proposals
+    proposal_log_prob <span style="color:#f92672">=</span> logpdf(proposal)
+
+    log_unif <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>uniform(rng_key, shape<span style="color:#f92672">=</span>position<span style="color:#f92672">.</span>shape))
+    accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
+
+    position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal, position)
+    log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal_log_prob, log_prob)
+    <span style="color:#66d9ef">return</span> position, log_prob
+
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_sampler</span>(rng_key, logpdf, initial_position):
+    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Vectorized Metropolis-Hastings.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    position <span style="color:#f92672">=</span> initial_position
+    log_prob <span style="color:#f92672">=</span> logpdf(initial_position)
+    <span style="color:#66d9ef">yield</span> position
+
+    <span style="color:#66d9ef">while</span> True:
+        position, log_prob <span style="color:#f92672">=</span> rw_metropolis_kernel(rng_key, logpdf, position, log_prob)
+        <span style="color:#66d9ef">yield</span> position
+</code></pre></div><p>If you are familiar with Numpy, the syntax of the version using JAX should feel
+very familiar to you. There a couple of things to note:</p>
 <ol>
-<li>It makes sense conceptually (the sampler carries a state and delivers samples
-one after the other). Clever is rarely better, but I think the marginal
-cognitive overhead (if any) is outweighed by the benefits.</li>
-<li>It does improve performance if you only care about the last sample in the
-run: you don't have to allocate memory in the heap. This actually shows in
-the benchmarks when the number of chains and samples start increasing. If you
-want to provide the behaviour people are used to you can recover <code>n_samples</code>
-from the generator by doing:</li>
+<li><code>jax.numpy</code> acts as a drop-in replacement to numpy. For codes only involving
+array operations, replacing <code>import numpy as np</code> by <code>import jax.numpy as np</code>
+should already give you performance benefits.</li>
+<li>JAX handle random number generation differently from other python package,
+for <a href="">very good reasons</a>. Every distribution takes a RNG key as an input.</li>
+<li>We extracted the kernel from the sampler because Jax cannot compile
+generators (or can it?). So we extract and JIT the function that does all the
+heavy lifting: <code>rw_metropolis_kernel</code>.</li>
+<li>We need to help Jax's compiler a little bit by indicating which arguments are
+not going to change when the function is run several times:
+<code>@partial(jax.jit, argnums=(0, 1))</code>. This is compulsory if you pass a
+function as an argument, and can enable further compile-time optimizations.</li>
 </ol>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> itertools <span style="color:#f92672">as</span> it
+<h3 id="tensorflow-probability">Tensorflow Probability</h3>
+<p>For TFP we use the Random Walk Metropolis algorithm implemented in the library:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> functools <span style="color:#f92672">import</span> partial
 
-sampler <span style="color:#f92672">=</span> sample(<span style="color:#f92672">.</span><span style="color:#f92672">.</span><span style="color:#f92672">.</span>)
-samples <span style="color:#f92672">=</span> it<span style="color:#f92672">.</span>slice(sampler, num_sampler)
-</code></pre></div><p>Almost free lunch!</p>
-<ol start="3">
-<li>Where it becomes really interesting is that you can now hook up diagnostics
-to your inference machine. I have had to run inference on really
-high-dimensional models, and inference would take forever, sometimes just to
-realise that something was not right at the end. Guess who has the same
-problem? Deep learning people! They iterate over the steps of their gradient
-descent, and came up with tools like tensorboard to monitor the training
-as it goes, sometimes for week. It would be very exciting to do something
-similar for non-variational bayesian inference! In pseudo code:</li>
-</ol>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">sampler <span style="color:#f92672">=</span> sample(<span style="color:#f92672">.</span><span style="color:#f92672">.</span><span style="color:#f92672">.</span>)
-<span style="color:#66d9ef">for</span> i, sample <span style="color:#f92672">in</span> enumerate(sampler):
-  trace<span style="color:#f92672">.</span>append(sample)
-  <span style="color:#66d9ef">if</span> i <span style="color:#f92672">%</span> <span style="color:#ae81ff">10</span>_000:
-    diagnostic <span style="color:#f92672">=</span> diagnose(train)
-    samplerboard<span style="color:#f92672">.</span>send(diagnostic)
-</code></pre></div><p>Since Jax cannot compile generators, I had to create a <code>step</code> function and
-compile it when the function is first called. Note that instead of simply
-calling <code>jax.jit(fn)</code> I called <code>jax.jit(fn, static_argnums=(0, 1, 2, 3, 4))</code>.
-This tells the compiler downstream which variables are not going to change when
-the function runs. Not only do you need it when passing functions as arguments,
-but this enables further optimizations.</p>
-<p>Jax has a specific way to handle random number generators <a href="">for good reasons</a>,
-so you need to pass a key to every function call.</p>
-<p>Apart from these two points, you have noticed that all I did was replacing
-sampling function with Jax's native, and <code>np</code> with <code>jnp</code>.</p>
-<p><strong>These are only the results on CPU. I wasn't able to get a hold of a GPU, but
-Jax will automatically use the GPU if it finds one. Imagine the speedup!</strong></p>
-<p>[Example optimization]</p>
+<span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">import</span> tensorflow <span style="color:#f92672">as</span> tf
+<span style="color:#f92672">import</span> tensorflow_probability <span style="color:#f92672">as</span> tfp
+tfd <span style="color:#f92672">=</span> tfp<span style="color:#f92672">.</span>distributions
 
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">run_raw_metropolis</span>(n_dims, n_samples, n_chains, target):
+    dtype <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>float32
+    samples, _ <span style="color:#f92672">=</span> tfp<span style="color:#f92672">.</span>mcmc<span style="color:#f92672">.</span>sample_chain(
+        num_results<span style="color:#f92672">=</span>n_samples,
+        current_state<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>zeros((n_chains, n_dims), dtype<span style="color:#f92672">=</span>dtype),
+        kernel<span style="color:#f92672">=</span>tfp<span style="color:#f92672">.</span>mcmc<span style="color:#f92672">.</span>RandomWalkMetropolis(target<span style="color:#f92672">.</span>log_prob, seed<span style="color:#f92672">=</span><span style="color:#ae81ff">42</span>),
+        num_burnin_steps<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>,
+        parallel_iterations<span style="color:#f92672">=</span><span style="color:#ae81ff">8</span>,
+    )
+
+    <span style="color:#66d9ef">return</span> samples
+
+run_mcm <span style="color:#f92672">=</span> partial(run_tfp_mcmc, n_dims, n_samples, n_chains, target)
+
+<span style="color:#75715e">## Without XLA</span>
+run_mcm()
+
+<span style="color:#75715e">## With XLA compilation</span>
+tf<span style="color:#f92672">.</span>xla<span style="color:#f92672">.</span>experimental<span style="color:#f92672">.</span>compile(run_mcm)
+</code></pre></div>
 
   </article>
 

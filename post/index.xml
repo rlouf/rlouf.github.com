@@ -17,9 +17,7 @@
       <pubDate>Wed, 09 Jan 2019 13:19:11 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/jax-random-walk-metropolis/</guid>
-      <description>Disclaimers:
- Yeah that&#39;s probably not the proper way to do benchmark; That&#39;s probably not a fair benchmark, I&#39;m interested in your suggestions to make it more fair. In particular, tensorflow-probability is not shining here so I must be doing something wrong.  This post was inspired by Colin Caroll&#39;s blog post on running a vectorized version of MCMC to get multiple chains at once.
-So far, running multiple chains at once was reserved to performing posterior checks on the convergence of algorithms, or reducing the variance (not the biais) of the results of Monte Carlo sampling.</description>
+      <description>TL;DR JAX blows everyone out of the water, up to a factor of 20x in extreme cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of samples, small number of chains regime due to JAX&#39;s JIT compilation. TFP with XLA compilation shines in the small number of chains, large number of samples regime. I must be doing something wrong with Tensorflow Probability as the numbers I get otherwise are very underwhelming.</description>
     </item>
     
   </channel>
