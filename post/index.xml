@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on /dev/null</title>
+    <link>/post/</link>
+    <description>Recent content in Posts on /dev/null</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 25 Dec 2019 09:24:11 +0100</lastBuildDate>
+    
+	<atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>PPLs that scale</title>
+      <link>/post/ppl_design/</link>
+      <pubDate>Wed, 25 Dec 2019 09:24:11 +0100</pubDate>
+      
+      <guid>/post/ppl_design/</guid>
+      <description>Let me state two things:
+ I am a Bayesian at heart. I have been using Bayesian methods professionally for 5 years now; I do not claim to be an expert in the field, and there are a lot of people smarter than me who have been thinking about these problems for a lot longer than I have.  A traditional program may look like this:
+Where there&#39;s improvement  Make use of multi-core computations / GPU computation Bayesian knowledge updating Mini-batch updates  P(\theta|\mathcal{D}_1) = \frac{\P(\mathcal{D}_1|\theta) P(\theta)}{P(\mathcal{D}_1} \propto P(\mathcal{D}_1|\theta) Much of the practical &amp;amp; theoretical debate has been focusing on the choice of priors, which for me is a non-debate.</description>
+    </item>
+    
+  </channel>
+</rss>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="">
+  <meta property="og:url" content="/post/ppl_design/">
+
+  <title>PPLs that scale - /dev/null</title>
+  <meta property="og:title" content="PPLs that scale - /dev/null">
+  <meta property="og:type" content="article">
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Arvo:400,700">
+  <link rel="stylesheet" href="/css/highlight.css">
+  <link rel="stylesheet" href="/css/journal.css">
+  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="/dev/null">
+
+</head>
+
+<body>
+  <div class="container">
+
+    <nav class="site-nav">
+      <a href="">Index</a>
+    </nav>
+
+
+  <article class="post">
+    <header class="post-header">
+      <h1 class="post-title">PPLs that scale</h1>
+      <time class="post-date" datetime="2019-12-25 09:24:11 CET">25 Dec 2019</time>
+    </header>
+
+    <p>Let me state two things:</p>
+<ol>
+<li>I am a Bayesian at heart. I have been using Bayesian methods professionally
+for 5 years now;</li>
+<li>I do not claim to be an expert in the field, and there are a lot of people
+smarter than me who have been thinking about these problems for a lot longer
+than I have.</li>
+</ol>
+<p>A traditional program may look like this:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"></code></pre></div><h1 id="where-theres-improvement">Where there's improvement</h1>
+<ol>
+<li>Make use of multi-core computations / GPU computation</li>
+<li>Bayesian knowledge updating</li>
+<li>Mini-batch updates</li>
+</ol>
+<pre><code class="language-math" data-lang="math">P(\theta|\mathcal{D}_1) = \frac{\P(\mathcal{D}_1|\theta)
+P(\theta)}{P(\mathcal{D}_1} \propto P(\mathcal{D}_1|\theta)
+</code></pre><p>Much of the practical &amp; theoretical debate has been focusing on the choice of
+priors, which for me is a <em>non-debate</em>. Traditional ML does have priors, but
+does not state them explicitly. When the results are not satisfactory, they do
+use priors, without stating it. They lie in the application of the probabilistic
+program, not the program itself.</p>
+<pre><code class="language-math" data-lang="math">P(\theta|\mathcal{D}_1, \mathcal{D}_2) = P(\mathcal{D}_2|\theta) P(\theta|\mathcal{D}_1)
+</code></pre><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">p <span style="color:#f92672">=</span> ProbabilisticProgram()
+p<span style="color:#f92672">.</span>observe(data)
+p<span style="color:#f92672">.</span>query(fn_query)
+</code></pre></div><p>with a sequence of data:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">p <span style="color:#f92672">=</span> ProbabilisticProgram()
+p<span style="color:#f92672">.</span>observe(data1)
+p<span style="color:#f92672">.</span>query(fn_query)
+p<span style="color:#f92672">.</span>observe(data2)
+p<span style="color:#f92672">.</span>query(fn_query)
+</code></pre></div><p>But what we currently do is:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">p <span style="color:#f92672">=</span> ProbabilisticProgram()
+p<span style="color:#f92672">.</span>observe(data1)
+p<span style="color:#f92672">.</span>query(fn_query)
+p<span style="color:#f92672">.</span>observe(data1 <span style="color:#f92672">+</span> data2)
+</code></pre></div><h1 id="smcmc-to-the-rescue">SMCMC to the rescue?</h1>
+<ul>
+<li>Sampling should be iterative by default; We should be able to log the
+progress deep-learning style.</li>
+<li>Ability to modify the graph in place to perform re-parametrization</li>
+<li>Update the observed nodes: there can be less, more, etc.</li>
+<li>Composite inference -&gt; discrete / continuous handling (or continuous version
+of the distributions)</li>
+<li>Graph coloring / ability to identify conditionally independant variable</li>
+<li>Bayesian updating that reduces to HMC when prior distribution</li>
+<li>Minibatch sampling that reduces to HMC for full batch</li>
+<li>Prior PS</li>
+<li>Posterior PS</li>
+<li>BNN sampling</li>
+<li>Prefetching to accelerate</li>
+<li>How do we do this on GPU?</li>
+<li>Ability to build BNNs</li>
+<li>Support variational inference</li>
+<li>Ability to observe data</li>
+</ul>
+<p>Framework = JAX because of neural tangent and its performance/simplicity + I
+like the functional style.</p>
+
+
+  </article>
+
+
+      <footer class="site-footer">
+        <span itemscope itemtype="http://schema.org/Person">
+          <link itemprop="url" href="">
+          <span itemprop="name"></span>
+
+          <br>
+
+          <a itemprop="sameAs" href="https://github.com/rlouf" title="GitHub">GH</a>
+
+          <a itemprop="sameAs" href="https://twitter.com/remilouf" title="Twitter">TW</a>
+
+          
+        </span>
+
+        
+      </footer>
+    </div>
+
+  <script src="/js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+  </body>
+</html>
+
