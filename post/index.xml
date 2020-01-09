@@ -22,5 +22,37 @@
 Where there&#39;s improvement  Make use of multi-core computations / GPU computation Bayesian knowledge updating Mini-batch updates  P(\theta|\mathcal{D}_1) = \frac{\P(\mathcal{D}_1|\theta) P(\theta)}{P(\mathcal{D}_1} \propto P(\mathcal{D}_1|\theta) Much of the practical &amp;amp; theoretical debate has been focusing on the choice of priors, which for me is a non-debate.</description>
     </item>
     
+    <item>
+      <title>Iterate fast, document faster</title>
+      <link>/post/iterate-fast-document-faster/</link>
+      <pubDate>Thu, 21 Jun 2018 07:43:28 +0200</pubDate>
+      
+      <guid>/post/iterate-fast-document-faster/</guid>
+      <description>Every respectable startup employee will tell you: iteration speed is key to success. It is actually the best predictor of a company&#39;s success. Why iterate quickly, though? Because before finding your product-market fit you are in a learning phase, and you better learn fast before the market swallows you.
+At Sounds we pride ourselves in always having a version of the application in review at the App Store, which mean a release cycle of the order of 4 days.</description>
+    </item>
+    
+    <item>
+      <title>5 minutes recommendation (and tf-idf)</title>
+      <link>/post/5-minutes-recommendation/</link>
+      <pubDate>Mon, 04 Jun 2018 22:11:10 +0100</pubDate>
+      
+      <guid>/post/5-minutes-recommendation/</guid>
+      <description>I hate complex solutions. I really do. I don&#39;t know if this comes form my background in physics where simplicity is hailed as the greatest virtue, my background in philosophy of science, or my job as chief scientist in a small startup. I live by the mantra
+ A simple model in production tomorrow is better than a deep learning solution in 6 months.
+ This might not apply if you work for a company that has the luxury to hire 100 data scientist (lucky you!</description>
+    </item>
+    
+    <item>
+      <title>How I learned to stop worrying and love A/B tests</title>
+      <link>/post/decision-theory-abtests/</link>
+      <pubDate>Wed, 09 May 2018 22:11:10 +0100</pubDate>
+      
+      <guid>/post/decision-theory-abtests/</guid>
+      <description>A/B testing and existential angst So, you run A/B tests. Let me guess.
+You often found yourself curled into a ball in anticipation of a product meeting, dreading the &amp;ldquo;are you sure about this?&amp;rdquo; question. Because no, you&#39;re not sure. Unless, of course, the improvement is above 10%, in which case you wouldn&#39;t have needed an A/B test anyway.
+You often cannot sleep at night, thinking &amp;ldquo;what if my A/B tests are all wrong?</description>
+    </item>
+    
   </channel>
 </rss>

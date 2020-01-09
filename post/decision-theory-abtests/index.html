@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="">
+  <meta property="og:url" content="/post/decision-theory-abtests/">
+
+  <title>How I learned to stop worrying and love A/B tests - /dev/null</title>
+  <meta property="og:title" content="How I learned to stop worrying and love A/B tests - /dev/null">
+  <meta property="og:type" content="article">
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Arvo:400,700">
+  <link rel="stylesheet" href="/css/highlight.css">
+  <link rel="stylesheet" href="/css/journal.css">
+  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="/dev/null">
+
+</head>
+
+<body>
+  <div class="container">
+
+    <nav class="site-nav">
+      <a href="">Index</a>
+    </nav>
+
+
+  <article class="post">
+    <header class="post-header">
+      <h1 class="post-title">How I learned to stop worrying and love A/B tests</h1>
+      <time class="post-date" datetime="2018-05-09 22:11:10 &#43;0100">09 May 2018</time>
+    </header>
+
+    <h2 id="ab-testing-and-existential-angst">A/B testing and existential angst</h2>
+<p>So, you run A/B tests. Let me guess.</p>
+<p>You often found yourself curled into a ball in anticipation of a product meeting, dreading the &ldquo;are you sure
+about this?&rdquo; question. Because no, you're not sure. Unless, of course, the improvement is above 10%, in which case you wouldn't
+have needed an A/B test anyway.</p>
+<p>You often cannot sleep at night, thinking &ldquo;what if my A/B tests are all wrong?&quot;. You read a lot of statistics
+book and skim blog posts in the hope that someone has found a solution. In the meantime, most of the uplifts
+that you see during the tests do not translate in production.</p>
+<p>If not you're probably naive, overconfident, or you are already applying a version of what I am going to
+discuss here.</p>
+<p>The accuracy (and usefulness) of A/B tests have been questioned a.lot, really.a.lot. Some go as far as saying
+that \(90%\) of the A/B tests give wrong (Jeeeeez) conclusions. Of course, you can console yourself by thinking
+that, on average, if you're only mistaken when the difference between variants is small, you're good. This
+kind of hand-waving argument makes no sense to me: how about if you're always biaised towards accepting the
+worst variants?</p>
+<p>Surely, there must be something better out there.</p>
+<h2 id="how-decisions-happen">How decisions happen</h2>
+<p>When we talk about A/B tests, we are usually concern about modelling <em>what</em> we are trying to observe&mdash;most of
+the time, conversion. So we focus on the model a lot, perfect it, perfect the inference method. What happens
+past the inference is loosely defined. Perhaps you'll sit around at a product meeting and someone will ask
+you: &ldquo;So, which variant should we pick?&quot;. If you're Bayesian you'll probably say that the results are not significant yet, but that
+they lean towards variant B.</p>
+<ul>
+<li>
+<p>&ldquo;We can close it then? We really need to move forward with this.&rdquo; the Product Manager says.</p>
+</li>
+<li>
+<p>&ldquo;Mmm, Guess so&rdquo;. And there goes variant B in production. And here is you anxiously hoping the changes will
+translate in production.</p>
+</li>
+</ul>
+<p>And this cycle just keeps going on. Sometimes you'll ask for more time, everyone will be frustrated, but
+you'll get it. Most of the time, due to shitty conversion rate the test would take forever before giving any
+sort of reliable results, and you just give up. This is even more true when you're in a startup and
+development cycles last typically less than a week.</p>
+<p>Everyone get frustrated, you carry an insane amount of stress, and changes that shouldn't see the light of the day
+are seen by millions. This is not good for you, the product team, and your application as a whole.</p>
+<p>What is the point of crafting relevant models, choosing apropriate priors and diagnosing the sampler if
+everything is ditched in the trash during a meeting because you are pressured to give an answer? I know, I
+know, people want answers quickly? But how quickly? What price are they willing to pay to get their answer
+quickly? Well, these are the questions we need to answer. These are the questions that <strong>you</strong> are responsible
+for asking. In short:</p>
+<p><strong>You can't pretend to be serious about you A/B tests if the decision process is not part of
+the modeling.</strong></p>
+<p>There is a better way, but it can be painful at first. It requires you to sit down with the product team and
+ask yourselves the following questions:</p>
+<ul>
+<li>What uncertainty are we willing to tolerate with regards to X and Y metrics?</li>
+<li>How costly is it for us to wait for an extra day of data collection?</li>
+<li>Is there any situation in which we want to immediately interrupt an ongoing experiment?</li>
+</ul>
+<p>I know, it's daunting. But, you may have not realised it yet, but <em>you are already having that discussion</em>, or
+at least part of it, everytime you're in a product meeting and deciding whether you should continue the
+experiment or not. At least, after writing everything down, we're sure everyone is clear about what is about
+to happen. When there's a discussion, we can point at the original document and say &ldquo;these are the terms. Do
+you think we should review them?&quot;.</p>
+<p>Also, it avoids bargaining. Although we are all tempted to do it when results don't match intuition,
+bargaining is bad.</p>
+<p>On your end, as an experimenter, this approach has several benefits. First, you can now model the decision
+process mathematically. Say you built a loss function that depends on the parameters you infer, \(L(\vec
+\theta \), which tells you how much you are losing by choosing a given variant (you should also discuss about
+that with your product team, btw). It would make sense to incorporate in this function the loss incured by
+waiting for another day/week/month to release the product.</p>
+<p>$$
+L^F\left(\theta, \delta, n\right) = L\left(\theta, \delta\right) + C(n)
+$$</p>
+<p>It is always tough to weigh certainty against time-related costs, but this is the real world. If you refuse to
+make these choices now, you will be fooling yourself in the future. Luckily, since the decision process is
+modeled, you can perform simulations of the process. Start with the scenarios you absolutely want to avoid,
+and see if the model is robust against this.</p>
+<p>As always, it was worth it to sit down and think hard about this for a couple of days. This had several
+benefit, for me and the company. The first, probably the most important, is that it forced us all to sit down
+and think hard about our decision process: what uncertainty are willing to tolerate? How costly is it for us
+to wait for an extra day of data collection? Is there any situation is which we want to exit the experiment?
+Te first one is that you dropped the monkey on someone else's shoulders: deciding when to stop, what is
+acceptable, etc. is not your call anymore. Yay! The second one is: you'll be able to sleep at night with the
+certainty that everything might slip, and you might make the wrong decision, <em>but it is one that you will not
+regret</em>.</p>
+<p>This may sound very nebulous right now, so I'll soon follow up with a more technical post and give practical
+examples of how you may want to implement this new framework.</p>
+
+
+  </article>
+
+
+      <footer class="site-footer">
+        <span itemscope itemtype="http://schema.org/Person">
+          <link itemprop="url" href="">
+          <span itemprop="name"></span>
+
+          <br>
+
+          <a itemprop="sameAs" href="https://github.com/rlouf" title="GitHub">GH</a>
+
+          <a itemprop="sameAs" href="https://twitter.com/remilouf" title="Twitter">TW</a>
+
+          
+        </span>
+
+        
+      </footer>
+    </div>
+
+  <script src="/js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+  </body>
+</html>
+
