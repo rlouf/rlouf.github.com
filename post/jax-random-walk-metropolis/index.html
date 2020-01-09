@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Hugo 0.62.0" />
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="">
+  <meta property="og:url" content="http://rlouf.github.com/post/jax-random-walk-metropolis/">
+
+  <title>Massively parallel MCMC with JAX - /dev/null</title>
+  <meta property="og:title" content="Massively parallel MCMC with JAX - /dev/null">
+  <meta property="og:type" content="article">
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Arvo:400,700">
+  <link rel="stylesheet" href="/css/highlight.css">
+  <link rel="stylesheet" href="/css/journal.css">
+  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="/dev/null">
+
+</head>
+
+<body>
+  <div class="container">
+
+    <nav class="site-nav">
+      <a href="http://rlouf.github.com/">Index</a>
+    </nav>
+
+
+  <article class="post">
+    <header class="post-header">
+      <h1 class="post-title">Massively parallel MCMC with JAX</h1>
+      <time class="post-date" datetime="2019-01-09 13:19:11 CET">09 Jan 2019</time>
+    </header>
+
+    <p>Disclaimers:</p>
+<ul>
+<li>Yeah that's probably not the proper way to do benchmark;</li>
+<li>That's probably not a fair benchmark, I'm interested in your suggestions
+to make it more fair. In particular, tensorflow-probability is not shining
+here so I must be doing something wrong.</li>
+</ul>
+<p>This post was inspired by Colin Caroll's <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
+post</a> on
+running a vectorized version of MCMC to get multiple chains at once.</p>
+<p>So far, running multiple chains at once was reserved to performing posterior
+checks on the convergence of algorithms, or reducing the variance (not the
+biais) of the results of Monte Carlo sampling. It was traditionally achieved by
+running one chain per thread on a multithreaded machine, in Python using joblib
+or a custom backend. It did the job.</p>
+<p>But then, multiple people started talking about vectorized sampling algorithms
+that were able to generate hundreds, thousands of chains in one pass. It turns
+out that I have recently gotten ridiculously obsessed with Sequential Markov
+Chain Monte Carlo, and part of the requirement is to be able to sample many
+chains at once. You will probably read a lot about SMCMC here in the near
+future.</p>
+<p>I am not going to repeat what Colin said about why we would like to have many,
+many chains, so you can read the reasons here.</p>
+<p>The idea was that if you want to build a reasonable PPL around this idea of
+vectorized sampling, you do need a framework that performs autodiff. Tensorflow
+Probability and Pyro allow you to do that already, but JAX seemed interesting to
+me for several reasons:</p>
+<ul>
+<li>It is in most cases a drop-in replacement for numpy, and numpy is known for its
+simple, clean interface (in most cases, don't jump on me here);</li>
+<li>Autodiff is plain simple;</li>
+<li>Its forward differentiation mode allows to easily compute higher-order
+derivatives;</li>
+<li>It performs JIT compilation, accelerating your code even on CPU;</li>
+<li>Using GPU is straightforward;</li>
+<li>Matter of taste, but I really like its functional style.</li>
+</ul>
+<p>Colin's MiniMC is an exercise in style, the simplest and most readable
+implementation of HMC I have seen. Probably thanks to the numpy backend.
+My numpy is implementation is an iteration upon his</p>
+<h2 id="numpy">Numpy</h2>
+<p>The first step towards assessing JAX's suitability for a PPL backend</p>
+<h2 id="jax">JAX</h2>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> jax
+<span style="color:#f92672">import</span> jax.numpy <span style="color:#f92672">as</span> jnp
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rwmh_step</span>(rng_key, num_vars, num_chains, likelihood_fn, state, likelihood):
+    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Updates the state with the Randow Walk Metropolis Hastings algorithm.</span><span style="color:#e6db74">
+</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    <span style="color:#75715e"># Propose a new state</span>
+    step_sizes <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>normal(rng_key, shape<span style="color:#f92672">=</span>(num_vars, num_chains)) <span style="color:#f92672">*</span> <span style="color:#ae81ff">0.9</span>
+    proposal_state <span style="color:#f92672">=</span> state <span style="color:#f92672">+</span> step_sizes
+    proposal_likelihood <span style="color:#f92672">=</span> log_prob(new_state)
+
+    log_unif <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>log(jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>uniform(rng_key, shape<span style="color:#f92672">=</span>(num_vars, num_chains)))
+    do_accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_likelihood <span style="color:#f92672">-</span> likelihood
+    new_state <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>where(do_accept, proposal_state, state)
+    new_likelihood <span style="color:#f92672">=</span> jnp<span style="color:#f92672">.</span>where(do_accept, proposal_likelihood, likelihood)
+
+    <span style="color:#66d9ef">return</span> new_state, new_likelihood
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">sample</span>(rng_key, likelihood_fn, num_vars, num_chains, initial_state):
+    state <span style="color:#f92672">=</span> initial_state
+    likelihood <span style="color:#f92672">=</span> likelihood_fn(state)
+
+    step <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>jit(rwmh_step, static_argnums<span style="color:#f92672">=</span>(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">3</span>))
+    <span style="color:#66d9ef">while</span> True:
+      state, likelihood <span style="color:#f92672">=</span> step(rng_key, num_vars, num_chains, likelihood_fn, state, likelihood)
+      <span style="color:#66d9ef">yield</span> sample
+</code></pre></div><p>The sampler is a python generator. In order of importance:</p>
+<ol>
+<li>It makes sense conceptually (the sampler carries a state and delivers samples
+one after the other). Clever is rarely better, but I think the marginal
+cognitive overhead (if any) is outweighed by the benefits.</li>
+<li>It does improve performance if you only care about the last sample in the
+run: you don't have to allocate memory in the heap. This actually shows in
+the benchmarks when the number of chains and samples start increasing. If you
+want to provide the behaviour people are used to you can recover <code>n_samples</code>
+from the generator by doing:</li>
+</ol>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> itertools <span style="color:#f92672">as</span> it
+
+sampler <span style="color:#f92672">=</span> sample(<span style="color:#f92672">.</span><span style="color:#f92672">.</span><span style="color:#f92672">.</span>)
+samples <span style="color:#f92672">=</span> it<span style="color:#f92672">.</span>slice(sampler, num_sampler)
+</code></pre></div><p>Almost free lunch!</p>
+<ol start="3">
+<li>Where it becomes really interesting is that you can now hook up diagnostics
+to your inference machine. I have had to run inference on really
+high-dimensional models, and inference would take forever, sometimes just to
+realise that something was not right at the end. Guess who has the same
+problem? Deep learning people! They iterate over the steps of their gradient
+descent, and came up with tools like tensorboard to monitor the training
+as it goes, sometimes for week. It would be very exciting to do something
+similar for non-variational bayesian inference! In pseudo code:</li>
+</ol>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python">sampler <span style="color:#f92672">=</span> sample(<span style="color:#f92672">.</span><span style="color:#f92672">.</span><span style="color:#f92672">.</span>)
+<span style="color:#66d9ef">for</span> i, sample <span style="color:#f92672">in</span> enumerate(sampler):
+  trace<span style="color:#f92672">.</span>append(sample)
+  <span style="color:#66d9ef">if</span> i <span style="color:#f92672">%</span> <span style="color:#ae81ff">10</span>_000:
+    diagnostic <span style="color:#f92672">=</span> diagnose(train)
+    samplerboard<span style="color:#f92672">.</span>send(diagnostic)
+</code></pre></div><p>Since Jax cannot compile generators, I had to create a <code>step</code> function and
+compile it when the function is first called. Note that instead of simply
+calling <code>jax.jit(fn)</code> I called <code>jax.jit(fn, static_argnums=(0, 1, 2, 3, 4))</code>.
+This tells the compiler downstream which variables are not going to change when
+the function runs. Not only do you need it when passing functions as arguments,
+but this enables further optimizations.</p>
+<p>Jax has a specific way to handle random number generators <a href="">for good reasons</a>,
+so you need to pass a key to every function call.</p>
+<p>Apart from these two points, you have noticed that all I did was replacing
+sampling function with Jax's native, and <code>np</code> with <code>jnp</code>.</p>
+<p><strong>These are only the results on CPU. I wasn't able to get a hold of a GPU, but
+Jax will automatically use the GPU if it finds one. Imagine the speedup!</strong></p>
+<p>[Example optimization]</p>
+
+
+  </article>
+
+
+      <footer class="site-footer">
+        <span itemscope itemtype="http://schema.org/Person">
+          <link itemprop="url" href="http://rlouf.github.com/">
+          <span itemprop="name"></span>
+
+          <br>
+
+          <a itemprop="sameAs" href="https://github.com/rlouf" title="GitHub">Github</a>
+
+          <a itemprop="sameAs" href="https://twitter.com/remilouf" title="Twitter">Twitter</a>
+
+          
+        </span>
+
+        
+      </footer>
+    </div>
+
+  <script src="/js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+  </body>
+</html>
+
