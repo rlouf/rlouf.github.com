@@ -40,103 +40,86 @@
 <p><strong>JAX blows everyone out of the water</strong>, by up to a factor of 20 in extreme
 cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of
 samples, small number of chains regime due to JAX's JIT compilation overhead. I
-report results for tensorflow probability (tfp), but keep in mind this is an
-unfair comparison since its implementation of random walk metroplis includes
-more bells and whistles than ours.</p>
+report results for tensorflow probability (TFP), but keep in mind the comparison
+is unfair since its implementation of random walk metroplis includes more bells
+and whistles than ours.</p>
 <p>The code necessary to reproduce the results can be found
 <a href="https://github.com/rlouf/blog-benchmark-rwmetropolis">here</a>. Tips to make the
-code run faster appreciated.</p>
-<h1 id="why-vectorized-mcmc">Why vectorized MCMC?</h1>
+code run faster are appreciated.</p>
+<h1 id="vectorized-mcmc">Vectorized MCMC</h1>
 <p>Colin Carroll recently posted an interesting <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
 post</a> that
 uses Numpy and a vectorized version of the random walk metropolis algorithm
-(RWMH) to generate a large number of samples.</p>
-<p>This got me very excited about the possibility to sample thousands, millions of
-chains in parallel with little added cost. Colin details a couple of possible
-applications, and I have the gut feeling that there is something bigger waiting
-around the corner. But this is or another post.</p>
-<p>Around the same time I stumbled upon <a href="http://github.com/jax/jax">JAX</a>.  Jax
-offers Just-in-Time compilation using <a href="">XLA</a>, inherits from autograd's autodiff
-functionality. It favours a functional style of programming which makes sense in
-a world where we are combining mathematical functions. I fell in love (there is
-some place left for stickers on my laptop, btw!).</p>
-<p>So, for future reference I decided to benchmark different backends:</p>
+(RWMH) to generate a large number of samples. Running multiple chains at
+once is used to performing posterior checks on the convergence of algorithms. It
+was traditionally achieved by running one chain per thread on a multithreaded
+machine, in Python using joblib or a custom backend. It is cumbersome, but it
+does the job.</p>
+<p>Colin's post got me very excited about the possibility to sample thousands,
+millions of chains in parallel with little added cost. He details a couple of
+possible applications in his post, but I have the gut feeling that there is
+something bigger waiting around the corner. But this is or another post.</p>
+<p>Around the same time I stumbled upon <a href="http://github.com/jax/jax">JAX</a>. JAX seems
+interesting in the context of Probabilistic Programming Languages for several
+reasons:</p>
+<ul>
+<li>It is in most cases a drop-in replacement for Numpy, and Numpy is known for
+its simple, clean interface (in most cases, don't jump on me here);</li>
+<li>Autodiff is plain simple (Hello, Hamiltonian Monte Carlo!);</li>
+<li>Its forward differentiation mode allows to easily compute higher-order
+derivatives easily;</li>
+<li>JAX performs JIT compilation using <a href="https://www.tensorflow.org/xla">XLA</a> which
+accelerates your code, even on CPU;</li>
+<li>Using GPUs and TPUs is straightforward;</li>
+<li>This is a matter of taste, but it favours a functional style of programming.</li>
+</ul>
+<p>Before diving right in and implementing a framework with JAX, I wanted to do a
+little benchmaking to get an idea of what I am signing up for. Here I will be
+comparing:</p>
 <ul>
 <li>Numpy</li>
 <li>Jax</li>
 <li>Tensorflow Probability (TFP)</li>
 <li>Tensorflow Probability with XLA compilation</li>
 </ul>
-<p>I am sampling an arbitrary Gaussian mixture with 4 components. Using Numpy:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
-<span style="color:#f92672">from</span> scipy.stats <span style="color:#f92672">import</span> norm
-
-<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">mixture_logpdf</span>(x):
-    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Log probability distribution function of a gaussian mixture model.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    x: np.ndarray (4, n_chains)</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">        Position at which to evaluate the probability density function.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
-    log_probs <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array(
-        [
-            norm(<span style="color:#f92672">-</span><span style="color:#ae81ff">2.0</span>, <span style="color:#ae81ff">1.2</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">0</span>]),
-            norm(<span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">1</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">1</span>]),
-            norm(<span style="color:#ae81ff">3.2</span>, <span style="color:#ae81ff">5</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">2</span>]),
-            norm(<span style="color:#ae81ff">2.5</span>, <span style="color:#ae81ff">2.8</span>)<span style="color:#f92672">.</span>logpdf(x[<span style="color:#ae81ff">3</span>]),
-        ]
-    )
-    weights <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>repeat(np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0.2</span>, <span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">0.4</span>]])<span style="color:#f92672">.</span>T, x<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>], axis<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>)
-    <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">-</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
-</code></pre></div><p>The code for all 3 frameworks is available in this <a href="">gist</a>.</p>
 <h1 id="notes-about-benchmarking">Notes about benchmarking</h1>
 <p>Before giving the results, a few words of caution:</p>
 <ol>
 <li>The reported times are the average of 10 runs on my laptop, with nothing
 other than the terminal open. For all but the post-compilation JAX runs,
-the times were measure by the <code>hyperfine</code> command line tool.</li>
-<li>My code is probably not optimal, especially for Numpy and TFP. I would
+the times were measured with the <code>hyperfine</code> command line tool.</li>
+<li>My code is probably not optimal, especially for TFP. I would
 appreciate tips to make the codes faster.</li>
-<li>The experiments are performed on CPU. Since JAX and TFP can run computations
-on GPU, I would expect TFP to beat Numpy in the large number of samples,
-number of shapes regime.</li>
+<li>The experiments are performed on CPU. JAX and TFP can run on GPU/TPU so
+expect additional acceleration there.</li>
 <li>For Numpy and JAX the sampler is a generator and the samples are not kept in
-memory. This is not the case for TFP, thus (1) the computer runs out of
-memory during big experiment (2) this might affect the performance.</li>
+memory. This is not the case for TFP thus the computer runs out of memory
+during big experiment. If TFP does not pre-allocate memory on the stack,
+constantly having to allocate memory might also affect the performance.</li>
+<li>Number of samples per second is not the metric that matters in probabilistic
+programming, but rather the number of effective samples you get per second.
+The latter is more of a matter of the algorithm you are using; this
+benchmark is still a good indication of the raw performance of the different
+frameworks.</li>
 </ol>
-<p>So far, running multiple chains at once was reserved to performing posterior
-checks on the convergence of algorithms, or reducing the variance (not the
-biais) of the results of Monte Carlo sampling. It was traditionally achieved by
-running one chain per thread on a multithreaded machine, in Python using joblib
-or a custom backend. It did the job.</p>
-<p>But then, multiple people started talking about vectorized sampling algorithms
-that were able to generate hundreds, thousands of chains in one pass. It turns
-out that I have recently gotten ridiculously obsessed with Sequential Markov
-Chain Monte Carlo, and part of the requirement is to be able to sample many
-chains at once. You will probably read a lot about SMCMC here in the near
-future.</p>
-<p>I am not going to repeat what Colin said about why we would like to have many,
-many chains, so you can read the reasons here.</p>
-<p>The idea was that if you want to build a reasonable PPL around this idea of
-vectorized sampling, you do need a framework that performs autodiff. Tensorflow
-Probability and Pyro allow you to do that already, but JAX seemed interesting to
-me for several reasons:</p>
-<ul>
-<li>It is in most cases a drop-in replacement for numpy, and numpy is known for its
-simple, clean interface (in most cases, don't jump on me here);</li>
-<li>Autodiff is plain simple;</li>
-<li>Its forward differentiation mode allows to easily compute higher-order
-derivatives;</li>
-<li>It performs JIT compilation, accelerating your code even on CPU;</li>
-<li>Using GPU is straightforward;</li>
-<li>Matter of taste, but I really like its functional style.</li>
-</ul>
-<p>Colin's MiniMC is an exercise in style, the simplest and most readable
-implementation of HMC I have seen. Probably thanks to the numpy backend.
-My numpy is implementation is an iteration upon his</p>
 <h1 id="setup-and-results">Setup and results</h1>
-<h2 id="numpy">Numpy</h2>
-<p>We implement the Random Walk Metropolis algorithm in the following,
-uncontroversial way:</p>
+<p>I am sampling an arbitrary Gaussian mixture with 4 components. Using Numpy:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
+<span style="color:#f92672">from</span> scipy.stats <span style="color:#f92672">import</span> norm
+<span style="color:#f92672">from</span> scipy.special <span style="color:#f92672">import</span> logsumexp
+
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">mixture_logpdf</span>(x):
+    loc <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#f92672">-</span><span style="color:#ae81ff">2</span>, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">3.2</span>, <span style="color:#ae81ff">2.5</span>]])<span style="color:#f92672">.</span>T
+    scale <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">1.2</span>, <span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">5</span>, <span style="color:#ae81ff">2.8</span>]])<span style="color:#f92672">.</span>T
+    weights <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0.2</span>, <span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">0.4</span>]])<span style="color:#f92672">.</span>T
+
+    log_probs <span style="color:#f92672">=</span> norm(loc, scale)<span style="color:#f92672">.</span>logpdf(x)
+
+    <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">-</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
+</code></pre></div><h2 id="numpy">Numpy</h2>
+<p>Colin Carroll's <a href="https://github.com/ColCarroll/minimc">MiniMC</a> has the simplest
+and most readable implementations of Random Walk Metropolis and Hamiltonian
+Monte Carlo I have seen. My Numpy implementation is an iteration upon his:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
 
 <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_sampler</span>(logpdf, initial_position):
@@ -156,6 +139,7 @@ uncontroversial way:</p>
         log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(do_accept, proposal_log_prob, log_prob)
         <span style="color:#66d9ef">yield</span> position
 </code></pre></div><h2 id="jax">JAX</h2>
+<p>The implementation in JAX is very similar to Numpy's:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> functools <span style="color:#f92672">import</span> partial
 
 <span style="color:#f92672">import</span> jax
@@ -183,18 +167,19 @@ uncontroversial way:</p>
     <span style="color:#66d9ef">while</span> True:
         position, log_prob <span style="color:#f92672">=</span> rw_metropolis_kernel(rng_key, logpdf, position, log_prob)
         <span style="color:#66d9ef">yield</span> position
-</code></pre></div><p>If you are familiar with Numpy, the syntax of the version using JAX should feel
-very familiar to you. There a couple of things to note:</p>
+</code></pre></div><p>If you are familiar with Numpy, the syntax should feel very familiar to you.
+There are a few differences:</p>
 <ol>
-<li><code>jax.numpy</code> acts as a drop-in replacement to numpy. For codes only involving
-array operations, replacing <code>import numpy as np</code> by <code>import jax.numpy as np</code>
-should already give you performance benefits.</li>
-<li>JAX handle random number generation differently from other python package,
-for <a href="">very good reasons</a>. Every distribution takes a RNG key as an input.</li>
-<li>We extracted the kernel from the sampler because Jax cannot compile
+<li><code>jax.numpy</code> acts as a drop-in replacement to <code>numpy</code>. For functions that only
+involve array operations, replacing <code>import numpy as np</code> by <code>import jax.numpy as np</code> should already give you performance benefits.</li>
+<li>JAX handle random number generation differently from other Python packages,
+for <a href="https://github.com/google/jax/blob/master/design_notes/prng.md">very good
+reasons</a>
+(read it!). Every distribution takes a PRNG key as an input.</li>
+<li>I extracted the kernel from the sampler because JAX cannot compile
 generators (or can it?). So we extract and JIT the function that does all the
 heavy lifting: <code>rw_metropolis_kernel</code>.</li>
-<li>We need to help Jax's compiler a little bit by indicating which arguments are
+<li>We need to help JAX's compiler a little bit by indicating which arguments are
 not going to change when the function is run several times:
 <code>@partial(jax.jit, argnums=(0, 1))</code>. This is compulsory if you pass a
 function as an argument, and can enable further compile-time optimizations.</li>
@@ -209,15 +194,13 @@ function as an argument, and can enable further compile-time optimizations.</li>
 tfd <span style="color:#f92672">=</span> tfp<span style="color:#f92672">.</span>distributions
 
 <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">run_raw_metropolis</span>(n_dims, n_samples, n_chains, target):
-    dtype <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>float32
     samples, _ <span style="color:#f92672">=</span> tfp<span style="color:#f92672">.</span>mcmc<span style="color:#f92672">.</span>sample_chain(
         num_results<span style="color:#f92672">=</span>n_samples,
-        current_state<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>zeros((n_chains, n_dims), dtype<span style="color:#f92672">=</span>dtype),
+        current_state<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>zeros((n_dims, n_chains), dtype<span style="color:#f92672">=</span>np<span style="color:#f92672">.</span>float32),
         kernel<span style="color:#f92672">=</span>tfp<span style="color:#f92672">.</span>mcmc<span style="color:#f92672">.</span>RandomWalkMetropolis(target<span style="color:#f92672">.</span>log_prob, seed<span style="color:#f92672">=</span><span style="color:#ae81ff">42</span>),
         num_burnin_steps<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>,
         parallel_iterations<span style="color:#f92672">=</span><span style="color:#ae81ff">8</span>,
     )
-
     <span style="color:#66d9ef">return</span> samples
 
 run_mcm <span style="color:#f92672">=</span> partial(run_tfp_mcmc, n_dims, n_samples, n_chains, target)
@@ -228,38 +211,39 @@ run_mcm()
 <span style="color:#75715e">## With XLA compilation</span>
 tf<span style="color:#f92672">.</span>xla<span style="color:#f92672">.</span>experimental<span style="color:#f92672">.</span>compile(run_mcm)
 </code></pre></div><h2 id="results">Results</h2>
-<p>We have two variables in the problem: the number of samples or the number of
+<p>We have two degrees of liberty: the number of samples and the number of
 chains. While the first relies on raw number crunching power, the second also
-relies on the way vectorization is encoded. I thus decided to benchmark
+relies on the way vectorization is implemented. I thus decided to benchmark
 algorithm on both dimensions.</p>
 <p>I consider the following cases:</p>
 <ol>
-<li>The pure numpy implementation;</li>
+<li>The Numpy implementation;</li>
 <li>The JAX implementation;</li>
-<li>The JAX implementation without compilation time. This is a hypothetical situation, just to show the power of compilation;</li>
+<li>The JAX implementation to which I subtract the compilation time. This is a
+hypothetical situation, just to show the improvement brought by compilation.</li>
 <li>Tensorflow Probability;</li>
 <li>Tensorflow Probability with the experimental XLA compilation.</li>
 </ol>
 <h5 id="draw-an-increasing-number-of-samples-with-1000-chains">Draw an increasing number of samples with 1,000 chains</h5>
-<p>We first look at how the algorithms scale withe the number of samples taken.</p>
+<p>We fix the number of chains and make the number of samples vary.</p>
 <p><img src="/img/rw_benchmark/samples.png" alt="Samples"></p>
 <p>You will notice the missing point for TFP implementation. Since the TFP
-algorithm stores all the samples produced, it ran out of memory for large
-numbers of samples. This did not happen with the XLA-compiled version, probably
-because it uses memory-efficient data structures.</p>
+algorithm stores all the samples, it runs out of memory for large numbers of
+samples. This did not happen with the XLA-compiled version, probably because it
+uses more memory-efficient data structures.</p>
 <p>For less than 1,000 samples the vanilla TFP and Numpy implementation are faster
 than their compiled counterparts. This is due to the compilation overhead: when
-you subtract the compilation time for JAX (green curve), it becomes faster by a
-large margin. Only when the number of samples becomes large and the total
-sampling time is dominated by the sampling time do you start to reap the
-benefits of compilation.</p>
+you subtract the compilation time for JAX (thus obtaining the green curve), it
+becomes faster by a large margin. Only when the number of samples becomes large
+and the total sampling time is dominated by the time it takes to draw samples do
+you start to reap the benefits of compilation.</p>
 <p><em>There is no magic: JIT compilation implies a noticeable, but
 constant, computation overhead.</em></p>
-<p>I would recommend to go with JAX anyway. Sampling in .3 seconds instead of 3
+<p>I would recommend to go with JAX in most cases. Sampling in .3 seconds instead of 3
 seconds only matters when this difference is going to be compounded by executing
-this piece of code more than ten times. However, compilation is something that
+the same piece of code more than ten times. However, compilation is something that
 only need to happen once; in this case the investment will be paid off before
-you reach 10 iterations. In practice, JAX still wins.</p>
+you reach 10 iterations. For all practical purposes, JAX wins.</p>
 <h5 id="draw-1000-samples-with-an-increasing-number-of-chains">Draw 1,000 samples with an increasing number of chains</h5>
 <p>Here we fix the number of samples and make the number of chains vary.</p>
 <p><img src="/img/rw_benchmark/chains.png" alt="Chains"></p>
@@ -273,22 +257,23 @@ not have an explanation why, so ping me if you have the answer!</p>
 </blockquote>
 <h1 id="conclusion">Conclusion</h1>
 <p>For something that allows us to write code in pure python, JAX's performance is
-incredible. Numpy is somewhat of a serious contender, especially for the smaller
+incredible. Numpy still is a decent contender, especially for the smaller
 numbers where most of JAX's execution time is spent compiling.</p>
 <p>However, Numpy is not suitable for a Probabilistic Programming Language. The
 implementation of efficient sampling algorithms like Hamiltonian Monte Carlo
 requires to compute the gradient of the probability density functions. JAX,
 however, between its performance and autodiff capabilities, has all it takes. No
 wonder Uber's team started working with JAX on <a href="https://github.com/pyro-ppl/numpyro">Numpyro</a>.</p>
-<p>Don't be disappointed by tensorflow probability's performance. When it comes to
-sampling from a distribution, what matters is not raw speed, but the number of
-effective samples per second. TFP's implementation includes more bells and
-whistles, and I would expect it to be way more competitive in terms of
-effective numbre of samples per second.</p>
+<p>Don't read too much in Tensorflow Probability's poor performance. When it comes
+to sampling from a distribution, what matters is not raw speed, but the number
+of effective samples per second. TFP's implementation includes more bells and
+whistles, and I would expect it to be way more competitive in terms of effective
+number of samples per second.</p>
 <p>Finally, note that it is way easier to scale by multiplying the number of chains
-than the number of samples. I have the gut feeling that once we discover what we
-can do with all these chains, pobabilistic programming will have another
-breakthrough.</p>
+than the number of samples. We don't know what to do with those chains yet, but
+I have the gut feeling that once we do, probabilistic programming will have
+another breakthrough.</p>
+<p>Stay tuned for the benchmark on Hamiltonian Monte Carlo!</p>
 
 
   </article>
