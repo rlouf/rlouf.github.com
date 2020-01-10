@@ -13,7 +13,8 @@ html {
       font-size: 1.125rem; } }
 
 body {
-  line-height: 1.6; }
+  line-height: 1.4;
+}
 
 html,
 body {
@@ -82,9 +83,10 @@ ul {
     margin-bottom: 0; }
 
 li {
-  margin: 0; }
+  margin: 0;
+  }
   li:not(last-of-type) {
-    margin-bottom: .4rem; }
+    margin-bottom: .2rem; }
 
 abbr {
   border-bottom: 1px dashed currentColor;
@@ -113,19 +115,23 @@ section {
   margin-bottom: 1rem; }
 
 h1 {
-  font-size: 1.875rem; }
+  margin: 1.5rem 0 1rem 0;
+  font-size: 2rem; }
 
-h2,
+h2 {
+}
 h3,
 h4,
 h5,
 h6 {
-  margin: 0 0 .5rem; }
+  margin: 0 0 .5rem 0; }
 
 h2 {
-  font-size: 2rem; }
+  margin: 1rem 0 .8rem 0;
+  font-size: 1.875rem; }
 
 h3 {
+  margin: 1rem 0 .5rem 0;
   font-size: 1.75rem; }
 
 h4 {
@@ -139,7 +145,7 @@ h6 {
 
 .container {
   width: 100%;
-  max-width: 38rem;
+  max-width: 42rem;
   margin: 0 auto;
   padding: .5rem; }
   @media screen and (min-width: 800px) {

@@ -36,23 +36,25 @@
       <time class="post-date" datetime="2019-01-09 13:19:11 CET">09 Jan 2019</time>
     </header>
 
-    <h2 id="tldr">TL;DR</h2>
-<p>JAX blows everyone out of the water, up to a factor of 20x in extreme cases
-(1,000 samples with 1,000,000 chains). Numpy wins in the small number of
-samples, small number of chains regime due to JAX's JIT compilation.  TFP with
-XLA compilation shines in the small number of chains, large number of samples
-regime. I must be doing something wrong with Tensorflow Probability as the
-numbers I get otherwise are very underwhelming.</p>
-<h2 id="introduction">Introduction</h2>
-<p>I recently got very excited about the possibility to generate thousands,
-millions of sampling chains with Monte Carlo algorithms. I vaguely followed
-several discussions around the topic</p>
-<p>I have seen here and there discussion about vectorized sampling algorithms that
-were able to generate hundreds, thousands of chains in one pass.</p>
-<p>Colin Caroll posted an interesting <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
+    <h1 id="tldr">TL;DR</h1>
+<p><strong>JAX blows everyone out of the water</strong>, by up to a factor of 20 in extreme
+cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of
+samples, small number of chains regime due to JAX's JIT compilation overhead. I
+report results for tensorflow probability (tfp), but keep in mind this is an
+unfair comparison since its implementation of random walk metroplis includes
+more bells and whistles than ours.</p>
+<p>The code necessary to reproduce the results can be found
+<a href="https://github.com/rlouf/blog-benchmark-rwmetropolis">here</a>. Tips to make the
+code run faster appreciated.</p>
+<h1 id="why-vectorized-mcmc">Why vectorized MCMC?</h1>
+<p>Colin Carroll recently posted an interesting <a href="https://colindcarroll.com/2019/08/18/very-parallel-mcmc-sampling/">blog
 post</a> that
-uses numpy and a vectorized version of the random walk metropolis-hastings
-(RWMH) algorithm to generate a large number of samples.</p>
+uses Numpy and a vectorized version of the random walk metropolis algorithm
+(RWMH) to generate a large number of samples.</p>
+<p>This got me very excited about the possibility to sample thousands, millions of
+chains in parallel with little added cost. Colin details a couple of possible
+applications, and I have the gut feeling that there is something bigger waiting
+around the corner. But this is or another post.</p>
 <p>Around the same time I stumbled upon <a href="http://github.com/jax/jax">JAX</a>.  Jax
 offers Just-in-Time compilation using <a href="">XLA</a>, inherits from autograd's autodiff
 functionality. It favours a functional style of programming which makes sense in
@@ -86,7 +88,7 @@ some place left for stickers on my laptop, btw!).</p>
     weights <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>repeat(np<span style="color:#f92672">.</span>array([[<span style="color:#ae81ff">0.2</span>, <span style="color:#ae81ff">0.3</span>, <span style="color:#ae81ff">0.1</span>, <span style="color:#ae81ff">0.4</span>]])<span style="color:#f92672">.</span>T, x<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>], axis<span style="color:#f92672">=</span><span style="color:#ae81ff">1</span>)
     <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">-</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
 </code></pre></div><p>The code for all 3 frameworks is available in this <a href="">gist</a>.</p>
-<h2 id="notes-about-benchmarking">Notes about benchmarking</h2>
+<h1 id="notes-about-benchmarking">Notes about benchmarking</h1>
 <p>Before giving the results, a few words of caution:</p>
 <ol>
 <li>The reported times are the average of 10 runs on my laptop, with nothing
@@ -131,27 +133,13 @@ derivatives;</li>
 <p>Colin's MiniMC is an exercise in style, the simplest and most readable
 implementation of HMC I have seen. Probably thanks to the numpy backend.
 My numpy is implementation is an iteration upon his</p>
-<h2 id="setup-and-results">Setup and results</h2>
-<h3 id="numpy">Numpy</h3>
+<h1 id="setup-and-results">Setup and results</h1>
+<h2 id="numpy">Numpy</h2>
 <p>We implement the Random Walk Metropolis algorithm in the following,
 uncontroversial way:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">import</span> numpy <span style="color:#f92672">as</span> np
 
 <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_sampler</span>(logpdf, initial_position):
-    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Generate samples using the Random Walk Metropolis algorithm.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    Attributes</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    ----------</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    logpdf: function</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      Returns the log-probability of the model given a position.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    initial_position: np.ndarray, shape (n_dims, n_chains)</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      The initial position for each chain.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    Yields</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    ------</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    np.ndarray, shape (,n_chains)</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      The next sample generated by the random walk metropolis algorithm.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
     position <span style="color:#f92672">=</span> initial_position
     log_prob <span style="color:#f92672">=</span> logpdf(initial_position)
     <span style="color:#66d9ef">yield</span> position
@@ -161,13 +149,13 @@ uncontroversial way:</p>
         proposal <span style="color:#f92672">=</span> position <span style="color:#f92672">+</span> move_proposals
         proposal_log_prob <span style="color:#f92672">=</span> logpdf(proposal)
 
-        log_unif <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>rand(initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">0</span>], initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>]))
-        accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
+        log_uniform <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(np<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>rand(initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">0</span>], initial_position<span style="color:#f92672">.</span>shape[<span style="color:#ae81ff">1</span>]))
+        do_accept <span style="color:#f92672">=</span> log_uniform <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
 
-        position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal, position)
-        log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal_log_prob, log_prob)
+        position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(do_accept, proposal, position)
+        log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(do_accept, proposal_log_prob, log_prob)
         <span style="color:#66d9ef">yield</span> position
-</code></pre></div><h3 id="jax">JAX</h3>
+</code></pre></div><h2 id="jax">JAX</h2>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> functools <span style="color:#f92672">import</span> partial
 
 <span style="color:#f92672">import</span> jax
@@ -179,17 +167,15 @@ uncontroversial way:</p>
     proposal <span style="color:#f92672">=</span> position <span style="color:#f92672">+</span> move_proposals
     proposal_log_prob <span style="color:#f92672">=</span> logpdf(proposal)
 
-    log_unif <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>uniform(rng_key, shape<span style="color:#f92672">=</span>position<span style="color:#f92672">.</span>shape))
-    accept <span style="color:#f92672">=</span> log_unif <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
+    log_uniform <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>log(jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>uniform(rng_key, shape<span style="color:#f92672">=</span>position<span style="color:#f92672">.</span>shape))
+    do_accept <span style="color:#f92672">=</span> log_uniform <span style="color:#f92672">&lt;</span> proposal_log_prob <span style="color:#f92672">-</span> log_prob
 
-    position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal, position)
-    log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(accept, proposal_log_prob, log_prob)
+    position <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(do_accept, proposal, position)
+    log_prob <span style="color:#f92672">=</span> np<span style="color:#f92672">.</span>where(do_accept, proposal_log_prob, log_prob)
     <span style="color:#66d9ef">return</span> position, log_prob
 
 
 <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">rw_metropolis_sampler</span>(rng_key, logpdf, initial_position):
-    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Vectorized Metropolis-Hastings.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
     position <span style="color:#f92672">=</span> initial_position
     log_prob <span style="color:#f92672">=</span> logpdf(initial_position)
     <span style="color:#66d9ef">yield</span> position
@@ -213,7 +199,7 @@ not going to change when the function is run several times:
 <code>@partial(jax.jit, argnums=(0, 1))</code>. This is compulsory if you pass a
 function as an argument, and can enable further compile-time optimizations.</li>
 </ol>
-<h3 id="tensorflow-probability">Tensorflow Probability</h3>
+<h2 id="tensorflow-probability">Tensorflow Probability</h2>
 <p>For TFP we use the Random Walk Metropolis algorithm implemented in the library:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">from</span> functools <span style="color:#f92672">import</span> partial
 
@@ -241,15 +227,68 @@ run_mcm()
 
 <span style="color:#75715e">## With XLA compilation</span>
 tf<span style="color:#f92672">.</span>xla<span style="color:#f92672">.</span>experimental<span style="color:#f92672">.</span>compile(run_mcm)
-</code></pre></div><p><a href="/static/img/rw_benchmark/samples.png">Samples</a>
-<a href="/static/img/rw_benchmark/chains.png">Chains</a></p>
-<p>Numpy was a serious contender of Jax for RW Metropolis. However, there is one
-place where it cannot compete, situations where the gradient of the function is
-needed. Hamiltonian Monte Carlo!</p>
-<p>TFP must be doing some sort of step-size adaptation which may affect the
-performance in terms on time (but not sample quality).</p>
-<p>Better measure is Effective Sample / s but here we are just comaring raw
-performance. The numbers may shift, but the comparisons should still hold.</p>
+</code></pre></div><h2 id="results">Results</h2>
+<p>We have two variables in the problem: the number of samples or the number of
+chains. While the first relies on raw number crunching power, the second also
+relies on the way vectorization is encoded. I thus decided to benchmark
+algorithm on both dimensions.</p>
+<p>I consider the following cases:</p>
+<ol>
+<li>The pure numpy implementation;</li>
+<li>The JAX implementation;</li>
+<li>The JAX implementation without compilation time. This is a hypothetical situation, just to show the power of compilation;</li>
+<li>Tensorflow Probability;</li>
+<li>Tensorflow Probability with the experimental XLA compilation.</li>
+</ol>
+<h5 id="draw-an-increasing-number-of-samples-with-1000-chains">Draw an increasing number of samples with 1,000 chains</h5>
+<p>We first look at how the algorithms scale withe the number of samples taken.</p>
+<p><img src="/img/rw_benchmark/samples.png" alt="Samples"></p>
+<p>You will notice the missing point for TFP implementation. Since the TFP
+algorithm stores all the samples produced, it ran out of memory for large
+numbers of samples. This did not happen with the XLA-compiled version, probably
+because it uses memory-efficient data structures.</p>
+<p>For less than 1,000 samples the vanilla TFP and Numpy implementation are faster
+than their compiled counterparts. This is due to the compilation overhead: when
+you subtract the compilation time for JAX (green curve), it becomes faster by a
+large margin. Only when the number of samples becomes large and the total
+sampling time is dominated by the sampling time do you start to reap the
+benefits of compilation.</p>
+<p><em>There is no magic: JIT compilation implies a noticeable, but
+constant, computation overhead.</em></p>
+<p>I would recommend to go with JAX anyway. Sampling in .3 seconds instead of 3
+seconds only matters when this difference is going to be compounded by executing
+this piece of code more than ten times. However, compilation is something that
+only need to happen once; in this case the investment will be paid off before
+you reach 10 iterations. In practice, JAX still wins.</p>
+<h5 id="draw-1000-samples-with-an-increasing-number-of-chains">Draw 1,000 samples with an increasing number of chains</h5>
+<p>Here we fix the number of samples and make the number of chains vary.</p>
+<p><img src="/img/rw_benchmark/chains.png" alt="Chains"></p>
+<p>JAX is still a clear winner: it is faster than Numpy as soon as the number of
+chains reaches 10,000. You will note that there is a bump on the JAX curve, that
+is entirely due to compilation (the green curve does not have this bump). I do
+not have an explanation why, so ping me if you have the answer!</p>
+<p>Here's the mind-blowing highlight:</p>
+<blockquote>
+<p>JAX can generate a billion samples in 25s on CPU. 20 times faster than Numpy.</p>
+</blockquote>
+<h1 id="conclusion">Conclusion</h1>
+<p>For something that allows us to write code in pure python, JAX's performance is
+incredible. Numpy is somewhat of a serious contender, especially for the smaller
+numbers where most of JAX's execution time is spent compiling.</p>
+<p>However, Numpy is not suitable for a Probabilistic Programming Language. The
+implementation of efficient sampling algorithms like Hamiltonian Monte Carlo
+requires to compute the gradient of the probability density functions. JAX,
+however, between its performance and autodiff capabilities, has all it takes. No
+wonder Uber's team started working with JAX on <a href="https://github.com/pyro-ppl/numpyro">Numpyro</a>.</p>
+<p>Don't be disappointed by tensorflow probability's performance. When it comes to
+sampling from a distribution, what matters is not raw speed, but the number of
+effective samples per second. TFP's implementation includes more bells and
+whistles, and I would expect it to be way more competitive in terms of
+effective numbre of samples per second.</p>
+<p>Finally, note that it is way easier to scale by multiplying the number of chains
+than the number of samples. I have the gut feeling that once we discover what we
+can do with all these chains, pobabilistic programming will have another
+breakthrough.</p>
 
 
   </article>

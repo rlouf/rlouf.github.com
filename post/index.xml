@@ -17,7 +17,7 @@
       <pubDate>Wed, 09 Jan 2019 13:19:11 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/jax-random-walk-metropolis/</guid>
-      <description>TL;DR JAX blows everyone out of the water, up to a factor of 20x in extreme cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of samples, small number of chains regime due to JAX&#39;s JIT compilation. TFP with XLA compilation shines in the small number of chains, large number of samples regime. I must be doing something wrong with Tensorflow Probability as the numbers I get otherwise are very underwhelming.</description>
+      <description>TL;DR JAX blows everyone out of the water, by up to a factor of 20 in extreme cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of samples, small number of chains regime due to JAX&#39;s JIT compilation overhead. I report results for tensorflow probability (tfp), but keep in mind this is an unfair comparison since its implementation of random walk metroplis includes more bells and whistles than ours.</description>
     </item>
     
   </channel>
