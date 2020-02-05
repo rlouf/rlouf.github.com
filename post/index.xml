@@ -17,7 +17,18 @@
       <pubDate>Wed, 09 Jan 2019 13:19:11 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/jax-random-walk-metropolis/</guid>
-      <description>TL;DR JAX blows everyone out of the water, by up to a factor of 20 in extreme cases (1,000 samples with 1,000,000 chains). Numpy wins in the small number of samples, small number of chains regime due to JAX&#39;s JIT compilation overhead. I report results for tensorflow probability (TFP), but keep in mind the comparison is unfair since its implementation of random walk metroplis includes more bells and whistles than ours.</description>
+      <description>TL;DR Edit on 2020/10/01: As pointed out by Matthew Johnson and Hector Yee, the results reported in a previous version of this post were artificially biaised in favor of JAX due to my code not &amp;ldquo;advancing&amp;rdquo; the random number generator. I updated all curves and numbers, and added a little word of caution regarding the use of JAX&amp;rsquo;s pseudo-random number generator.
+The code necessary to reproduce the results can be found here.</description>
+    </item>
+    
+    <item>
+      <title>The Engine: a framework for growth</title>
+      <link>http://rlouf.github.com/post/growth-model/</link>
+      <pubDate>Mon, 05 Nov 2018 22:00:10 +0100</pubDate>
+      
+      <guid>http://rlouf.github.com/post/growth-model/</guid>
+      <description>A popular set of metrics against which growth of applications can be measured is the &amp;ldquo;pirate metrics&amp;rdquo;, or AARRR metrics:
+ Acquisition: the number of users who get in your application every day; Activation: the proportion of these users who perform a meaningful action. For a music streaming app it could be to play at least one song entirely. For a food delivery service, placing an order; Retention: the proportion of users who are still there after 1, 7, 30 days, etc1; Referral: The proportion of users who refer the application to potential users; Revenue: the proportion of users who pay for your service.</description>
     </item>
     
   </channel>
