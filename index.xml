@@ -6,10 +6,19 @@
     <description>Recent content on /dev/null</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Wed, 09 Jan 2019 13:19:11 +0100</lastBuildDate>
+    <lastBuildDate>Thu, 13 Feb 2020 09:13:38 +0100</lastBuildDate>
     
 	<atom:link href="http://rlouf.github.com/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>MCX: designing the API of the HMC kernel</title>
+      <link>http://rlouf.github.com/post/ppl_integrator_api/</link>
+      <pubDate>Thu, 13 Feb 2020 09:13:38 +0100</pubDate>
+      
+      <guid>http://rlouf.github.com/post/ppl_integrator_api/</guid>
+      <description>I have been working on a probabilistic programming library, MCX (don&amp;rsquo;t use it yet, most of it is in API prototype stage) for the past few weeks. I will write more about it soon, but the library is based on source code transformation: you express the model as a python function, and a compiler reads the function, applies the necessary transformations and outputs either a function that generates samples from this distribution, or its logpdf.</description>
+    </item>
     
     <item>
       <title>Massively parallel MCMC with JAX</title>
