@@ -12,7 +12,7 @@
     
     
     <item>
-      <title>Introducing_mcx</title>
+      <title>Introducing MCX</title>
       <link>http://rlouf.github.com/post/introduce_mcx/</link>
       <pubDate>Fri, 25 Sep 2020 19:09:52 +0200</pubDate>
       
@@ -47,16 +47,6 @@ The code necessary to reproduce the results can be found here.</description>
       <guid>http://rlouf.github.com/post/growth-model/</guid>
       <description>A popular set of metrics against which growth of applications can be measured is the &amp;ldquo;pirate metrics&amp;rdquo;, or AARRR metrics:
  Acquisition: the number of users who get in your application every day; Activation: the proportion of these users who perform a meaningful action. For a music streaming app it could be to play at least one song entirely. For a food delivery service, placing an order; Retention: the proportion of users who are still there after 1, 7, 30 days, etc1; Referral: The proportion of users who refer the application to potential users; Revenue: the proportion of users who pay for your service.</description>
-    </item>
-    
-    <item>
-      <title></title>
-      <link>http://rlouf.github.com/post/mcx_api/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      
-      <guid>http://rlouf.github.com/post/mcx_api/</guid>
-      <description>Minimal coupling I like to think of mcx as being the composition of three loosely coupled libraries rather than a full library:
- The core, which allows to build graphical models and compile them to a forward sampling function or a log-probability density function; The distributions which implement, well, distribution. Most of the heavy lifting will be transfered to JAX&amp;rsquo;s scipy and numpy in a near future. We just add utilities to check the parameters&amp;rsquo; domain and ensure that value stay in the support; The inference engine, a collection of momentum generators/kinetic energies, integrators, adaptive schemes that can be combined into warmup and inference kernels.</description>
     </item>
     
   </channel>
