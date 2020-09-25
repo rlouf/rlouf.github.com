@@ -21,16 +21,6 @@
     </item>
     
     <item>
-      <title>On moving</title>
-      <link>http://rlouf.github.com/post/move/</link>
-      <pubDate>Sun, 23 Aug 2020 22:11:10 +0100</pubDate>
-      
-      <guid>http://rlouf.github.com/post/move/</guid>
-      <description>Finance is often overlooked by data scientist
- Simple problem of &amp;ldquo;predicting the price&amp;rdquo;; Prices have a single source of truth (the exchange) There are plenty of alternative data to explore; Very low signal over noise ratio; Many mechanistic insights.  It acu</description>
-    </item>
-    
-    <item>
       <title>Designing modular inference engines: API for the HMC kernel</title>
       <link>http://rlouf.github.com/post/ppl_integrator_api/</link>
       <pubDate>Thu, 13 Feb 2020 09:13:38 +0100</pubDate>
