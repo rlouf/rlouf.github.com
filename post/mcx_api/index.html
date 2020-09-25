@@ -8,11 +8,11 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="author" content="">
-  <meta property="og:url" content="http://rlouf.github.com/">
+  <meta property="og:url" content="http://rlouf.github.com/post/mcx_api/">
 
-  <title>/dev/null</title>
-  <meta property="og:title" content="/dev/null">
-  <meta property="og:type" content="website">
+  <title> - /dev/null</title>
+  <meta property="og:title" content=" - /dev/null">
+  <meta property="og:type" content="article">
   <meta name="description" content="">
 
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Serif+Pro:400,700">
@@ -25,58 +25,34 @@
 <body>
   <div class="container">
 
-    <header class="site-header">
-			<img class="logo" src="img/dev_null.png" alt="" aria-hidden="true">
-			<p>Where the wild thoughts are.</p>
-		</header>
-    
-      
-      
-    
+    <nav class="site-nav">
+      <a href="http://rlouf.github.com/">Index</a>
+    </nav>
 
 
-  <article class="posts">
+  <article class="post">
+    <header class="post-header">
+      <h1 class="post-title"></h1>
+      <time class="post-date" datetime="0001-01-01 00:00:00 UTC">01 Jan 0001</time>
+    </header>
 
-    <section>
-      <h2>2020</h2>
+    <h2 id="minimal-coupling">Minimal coupling</h2>
+<p>I like to think of <code>mcx</code> as being the composition of three loosely coupled
+libraries rather than a full library:</p>
+<ol>
+<li>The core, which allows to build graphical models and compile them to a
+forward sampling function or a log-probability density function;</li>
+<li>The distributions which implement, well, distribution. Most of the heavy
+lifting will be transfered to JAX&rsquo;s scipy and numpy in a near future. We
+just add utilities to check the parameters&rsquo; domain and ensure that value stay
+in the support;</li>
+<li>The inference engine, a collection of momentum generators/kinetic energies,
+integrators, adaptive schemes that can be combined into warmup and inference
+kernels.</li>
+</ol>
+<p>[there should be no jitting in the core which should be JAX-agnostic]</p>
+<p>With the root module as the glue between the 3.</p>
 
-      <ol>
-        <li>
-          <time datetime="2020-09-25 19:09:52 CEST">Sep 25</time>
-          <a href="/post/introduce_mcx/">Introducing_mcx</a>
-        </li><li>
-          <time datetime="2020-08-23 22:11:10 &#43;0100">Aug 23</time>
-          <a href="/post/move/">On moving</a>
-        </li><li>
-          <time datetime="2020-02-13 09:13:38 CET">Feb 13</time>
-          <a href="/post/ppl_integrator_api/">Designing modular inference engines: API for the HMC kernel</a>
-        </li><li>
-          <time datetime="2020-01-09 13:19:11 CET">Jan 09</time>
-          <a href="/post/jax-random-walk-metropolis/">Massively parallel MCMC with JAX</a>
-        </li>
-      </ol>
-    </section>
-    <section>
-      <h2>2018</h2>
-
-      <ol>
-        <li>
-          <time datetime="2018-11-05 22:00:10 CET">Nov 05</time>
-          <a href="/post/growth-model/">The Engine: a framework for growth</a>
-        </li>
-      </ol>
-    </section>
-    <section>
-      <h2>0001</h2>
-
-      <ol>
-        <li>
-          <time datetime="0001-01-01 00:00:00 UTC">Jan 01</time>
-          <a href="/post/mcx_api/"></a>
-        </li>
-      </ol>
-    </section>
-    
 
   </article>
 

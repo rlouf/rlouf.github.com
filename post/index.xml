@@ -6,10 +6,29 @@
     <description>Recent content in Posts on /dev/null</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Thu, 13 Feb 2020 09:13:38 +0100</lastBuildDate>
+    <lastBuildDate>Fri, 25 Sep 2020 19:09:52 +0200</lastBuildDate>
     
 	<atom:link href="http://rlouf.github.com/post/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Introducing_mcx</title>
+      <link>http://rlouf.github.com/post/introduce_mcx/</link>
+      <pubDate>Fri, 25 Sep 2020 19:09:52 +0200</pubDate>
+      
+      <guid>http://rlouf.github.com/post/introduce_mcx/</guid>
+      <description>I have been working on a personal project since last February (remember, before the pandemic). I had two goals in mind at the time: learn JAX, and learn how to code a PPL. I had been using Stan and PyMC3 for years and felt some frustration at not having a good grasp of how inference was happening under the hood. This was by no means intended to be a PPL at the time, more like Colin Carrol&amp;rsquo;s MiniMC but using JAX for performance.</description>
+    </item>
+    
+    <item>
+      <title>On moving</title>
+      <link>http://rlouf.github.com/post/move/</link>
+      <pubDate>Sun, 23 Aug 2020 22:11:10 +0100</pubDate>
+      
+      <guid>http://rlouf.github.com/post/move/</guid>
+      <description>Finance is often overlooked by data scientist
+ Simple problem of &amp;ldquo;predicting the price&amp;rdquo;; Prices have a single source of truth (the exchange) There are plenty of alternative data to explore; Very low signal over noise ratio; Many mechanistic insights.  It acu</description>
+    </item>
     
     <item>
       <title>Designing modular inference engines: API for the HMC kernel</title>
@@ -23,7 +42,7 @@
     <item>
       <title>Massively parallel MCMC with JAX</title>
       <link>http://rlouf.github.com/post/jax-random-walk-metropolis/</link>
-      <pubDate>Wed, 09 Jan 2019 13:19:11 +0100</pubDate>
+      <pubDate>Thu, 09 Jan 2020 13:19:11 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/jax-random-walk-metropolis/</guid>
       <description>TL;DR Edit on 2020/10/01: As pointed out by Matthew Johnson and Hector Yee, the results reported in a previous version of this post were artificially biaised in favor of JAX due to my code not &amp;ldquo;advancing&amp;rdquo; the random number generator. I updated all curves and numbers, and added a little word of caution regarding the use of JAX&amp;rsquo;s pseudo-random number generator.
@@ -38,6 +57,16 @@ The code necessary to reproduce the results can be found here.</description>
       <guid>http://rlouf.github.com/post/growth-model/</guid>
       <description>A popular set of metrics against which growth of applications can be measured is the &amp;ldquo;pirate metrics&amp;rdquo;, or AARRR metrics:
  Acquisition: the number of users who get in your application every day; Activation: the proportion of these users who perform a meaningful action. For a music streaming app it could be to play at least one song entirely. For a food delivery service, placing an order; Retention: the proportion of users who are still there after 1, 7, 30 days, etc1; Referral: The proportion of users who refer the application to potential users; Revenue: the proportion of users who pay for your service.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://rlouf.github.com/post/mcx_api/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://rlouf.github.com/post/mcx_api/</guid>
+      <description>Minimal coupling I like to think of mcx as being the composition of three loosely coupled libraries rather than a full library:
+ The core, which allows to build graphical models and compile them to a forward sampling function or a log-probability density function; The distributions which implement, well, distribution. Most of the heavy lifting will be transfered to JAX&amp;rsquo;s scipy and numpy in a near future. We just add utilities to check the parameters&amp;rsquo; domain and ensure that value stay in the support; The inference engine, a collection of momentum generators/kinetic energies, integrators, adaptive schemes that can be combined into warmup and inference kernels.</description>
     </item>
     
   </channel>

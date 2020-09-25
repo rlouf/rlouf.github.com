@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="generator" content="Hugo 0.63.1" />
+  <meta name="generator" content="Hugo 0.74.3" />
 
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -72,15 +72,15 @@ everyone is using HMC, have a look at <a href="https://arxiv.org/abs/1410.5110">
 lot like what you are used to. I use a closure to compose the different elements
 into a self-contained step function:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">HMCState</span>(NamedTuple):
-    <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">State on which the HMC kernel acts.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    We can (and probably should) add more information which can be useful</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    higher up:</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      - State of the proposal</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      - Whether the move was accepted</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      - Acceptance ratio</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">      - State of the integrator</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">    </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    <span style="color:#e6db74">&#34;&#34;&#34;State on which the HMC kernel acts.
+</span><span style="color:#e6db74">
+</span><span style="color:#e6db74">    We can (and probably should) add more information which can be useful
+</span><span style="color:#e6db74">    higher up:
+</span><span style="color:#e6db74">      - State of the proposal
+</span><span style="color:#e6db74">      - Whether the move was accepted
+</span><span style="color:#e6db74">      - Acceptance ratio
+</span><span style="color:#e6db74">      - State of the integrator
+</span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
     position: Array
     log_prob:float
     log_prob_grad: float
@@ -96,9 +96,9 @@ into a self-contained step function:</p>
     step_size: float,
 ):
     
-    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">step</span>(rng_key, state: HMCState) <span style="color:#f92672">-</span><span style="color:#f92672">&gt;</span> HMCState:
-        <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Moves the chain by one step using the Hamiltonian dynamics.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">        </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">step</span>(rng_key, state: HMCState) <span style="color:#f92672">-&gt;</span> HMCState:
+        <span style="color:#e6db74">&#34;&#34;&#34;Moves the chain by one step using the Hamiltonian dynamics.
+</span><span style="color:#e6db74">        &#34;&#34;&#34;</span>
         key_momentum, key_uniform <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>split(rng_key)
 
         momentum <span style="color:#f92672">=</span> momentum_generator(key_momentum)
@@ -162,9 +162,9 @@ the developers of <a href="https://arxiv.org/abs/2001.05035">FunMC</a> use a sim
     kinetic_energy: Callable,
 ):
     
-    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">step</span>(rng_key, state: HMCState) <span style="color:#f92672">-</span><span style="color:#f92672">&gt;</span> HMCState:
-        <span style="color:#e6db74"></span><span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#e6db74">Moves the chain by one step using the Hamiltonian dynamics.</span><span style="color:#e6db74">
-</span><span style="color:#e6db74"></span><span style="color:#e6db74">        </span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">step</span>(rng_key, state: HMCState) <span style="color:#f92672">-&gt;</span> HMCState:
+        <span style="color:#e6db74">&#34;&#34;&#34;Moves the chain by one step using the Hamiltonian dynamics.
+</span><span style="color:#e6db74">        &#34;&#34;&#34;</span>
         key_momentum, key_uniform <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>split(rng_key)
 
         momentum <span style="color:#f92672">=</span> momentum_generator(key_momentum)

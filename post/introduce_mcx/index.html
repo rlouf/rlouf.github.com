@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Hugo 0.74.3" />
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="">
+  <meta property="og:url" content="http://rlouf.github.com/post/introduce_mcx/">
+
+  <title>Introducing_mcx - /dev/null</title>
+  <meta property="og:title" content="Introducing_mcx - /dev/null">
+  <meta property="og:type" content="article">
+  <meta name="description" content="">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Serif+Pro:400,700">
+  <link rel="stylesheet" href="/css/highlight.css">
+  <link rel="stylesheet" href="/css/journal.css">
+  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="/dev/null">
+
+</head>
+
+<body>
+  <div class="container">
+
+    <nav class="site-nav">
+      <a href="http://rlouf.github.com/">Index</a>
+    </nav>
+
+
+  <article class="post">
+    <header class="post-header">
+      <h1 class="post-title">Introducing_mcx</h1>
+      <time class="post-date" datetime="2020-09-25 19:09:52 CEST">25 Sep 2020</time>
+    </header>
+
+    <p>I have been working on a personal project since last February (remember, before
+the pandemic). I had two goals in mind at the time: learn JAX, and learn how to
+code a PPL. I had been using Stan and PyMC3 for years and felt some frustration
+at not having a good grasp of how inference was happening under the hood. This
+was by no means intended to be a PPL at the time, more like Colin Carrol&rsquo;s
+<a href="">MiniMC</a> but using JAX for performance.</p>
+<p>Here are the requirements:</p>
+<ol>
+<li>A simple API. We all love PyMC3&rsquo;s API. It has all what we need, and just what
+we need. Except having to repeat the names of variables.</li>
+<li>A graph representation. Having a graph representation allows you to do a lot
+of cool things: introspection and manipulation. And we call them <em>graphical
+models</em>, after all?</li>
+<li>Fast inference, for many chains. What&rsquo;s worse than waiting in front of your
+computer for hours to get samples. As for the chain, they are mostly cool
+right now, but I have an idea of how to exploit many, many chains.</li>
+<li>Modularity.</li>
+</ol>
+<p>The difficulty of designing a user-friendly API for a Probabilistic Programming
+Language stems for the trumping simplicity of the way graphical models are
+presented mathematically:</p>
+<pre><code>a ~ Beta(1, 2)
+b ~ Binomial(a)
+</code></pre><p>From this simplistic representation we need to extract at least two objects: one
+that produces samples form the prior distribution, and the multivariate
+log-probability density conditioned on the observe data. We have a one-to-many
+relationship between the notation and what we want to extract from it.</p>
+<p>Programming language are different: one set of instructions does one thing and
+only one. There is thus a tension between the above notations and the
+programming language. This is a problem of two languages: how do you express in
+a programming language an abstract concept?</p>
+<p>PPLs have different ways to resolve this tension: some build a graph, some use
+effect handlers, others abuse some features of programming language. MCX&rsquo;s
+stance is much like Stan&rsquo;s: what if we created our own language that can then be
+compiled in different objects depending on the context?</p>
+<p>The way we deal with this is: if we are going to write a language it might as
+well look like the mathematical model. So we use Python&rsquo;s dynamic AST
+manipulation features. So the above model would look like:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#a6e22e">@mcx.model</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">beta_binomial</span>():
+  a <span style="color:#f92672">&lt;~</span> Beta(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>)
+  b <span style="color:#f92672">&lt;~</span> Binomial(a)
+</code></pre></div><p>which is syntactically correct python, but wouldn&rsquo;t do anything good without the
+<code>@mcx.model</code> decorator. What happens when you call the function is that its
+content is being parsed: random variables and distributions are identified as
+well as their dependencies. And this is the second important thing: they are
+parsed into a directed graph, another representation of the equations above. The
+graph is stored in the model (which is actually a class).</p>
+<p>Models are distributions, so they implement <code>sample</code> and <code>logpdf</code> functions.
+When you call either of these, two different <strong>compilers</strong> are called and
+traverse the graph to build the necessary functions.</p>
+<p>The models&rsquo; graph can be accessed interactively. It can be changed in place. It
+is possible to set the value of one node and see how it impacts the others, very
+useful to debug without re-writing the whole in scipy!</p>
+<p>Having a graph is wonderful: it means that you can symbolically manipulate your
+model. You can detect conjugacies and using conjugate distibution to optimize
+sampling, reparametrization is trivial to do, etc. Manipulating the graph is
+pretty much akin to manipulating the mathematical object.</p>
+<pre><code>                                       +----&gt; logpdf
+  @mcx.model                           |
+  def my_model(X):   -----&gt;   Graph  -------&gt; ....
+      .....                            |
+      return y                         +----&gt; forward_sampler 
+
+</code></pre><p>All this happens in <em>pure python</em>, there is no framework involved. We do use
+NetworkX to build and manipulate graphs for convenience, but could do without.</p>
+<p>The advantage of compiling pure python function is that it nicely decouples the
+modeling language from inference. Any inference library that accepts python
+functions (with jax constructs) could use the functions used by the DSL. So far
+the entire code only relies on functions in JAX that are present in numpy/scipy.
+So you could very well consider this as a numpy/scipy function. And if you were
+introduce JAX-specific constructs such as control flow, you could still specify
+a different compiler for each backend since the graph representation is
+framework-agnostic. Hell, you could even write, without too much effort, an
+edward2, pymc3 or pyro compiler!</p>
+<pre><code>Example with control flow and different
+</code></pre><p>Is it crazy to do AST manipulation? It might be harder to do it right than in
+language with a full-fledged macro system such as, say, Julia or Lisp, but done
+correctly it actually gives us nice benefits: a nice API with a powerful
+intermediate representation. Corner cases can also be tested as it is possible
+to output the code of the logpdfs from the model.</p>
+<pre><code>Example model.source_logpdf
+</code></pre><h1 id="inference">Inference</h1>
+<p>I&rsquo;ll never repeat enough: the modeling language and the inference module are
+completely separate. But they need</p>
+<p>The philosophy is that inference in traditional PPLs can be divided according to
+three different levels of abstraction:</p>
+<ol>
+<li>The building blocks (or routines) of the algorithms: integrators, metrics, proposals, &hellip;
+which do only one thing and do it well.</li>
+<li>Programs like the HMC algorithm are a particular assembly of these building
+blocks. They form a transition kernel.</li>
+<li>Runtimes, that tie the data, the model and the kernel together and then make
+the chains move forward following an execution plan.</li>
+</ol>
+<pre><code>Runtime (Batch sampler)
+-------------------------------------------------
+Programs (HMC)
+-------------------------------------------------
+Routines (velocity Verlet, dynamic proposal, etc.)
+-------------------------------------------------
+</code></pre><p>Most users will interact with the pre-defined programs (HMC or NUTS with the
+Stan warmup) and runtimes. But it is possible to create custom inference, it can
+be as simple as overriding HMC&rsquo;s warmup by subclassing its class, or as
+complicated as implementing your own transition kernel using the available
+blocks or blocks you have programmed.</p>
+<p>MCX comes with sane defaults (runtimes and pre-defined programs), but has many
+trap doors that allow you to tinker with the lower level.</p>
+<h2 id="carving-mcmc-at-its-joints">Carving MCMC at its joints</h2>
+<h2 id="give-me-a-million-chains">Give me a million chains</h2>
+
+
+  </article>
+
+
+      <footer class="site-footer">
+        <span itemscope itemtype="http://schema.org/Person">
+          <link itemprop="url" href="http://rlouf.github.com/">
+          <span itemprop="name"></span>
+
+          <br>
+
+          <a itemprop="sameAs" href="https://github.com/rlouf" title="GitHub">Github</a>
+
+          <a itemprop="sameAs" href="https://twitter.com/remilouf" title="Twitter">Twitter</a>
+
+          
+        </span>
+
+        
+      </footer>
+    </div>
+
+  <script src="/js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+
+	<script type="text/javascript"
+	src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+	</script>
+	<script type="text/x-mathjax-config">
+		MathJax.Hub.Config({
+			tex2jax: {
+				 inlineMath: [['$','$'], ['\\(','\\)']],
+				 displayMath: [['$$','$$']],
+				 processEscapes: true,
+				 processEnvironments: true,
+				 skipTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+				 TeX: { equationNumbers: { autoNumber: "AMS" },
+								extensions: ["AMSmath.js", "AMSsymbols.js"] }
+			}
+		});
+	</script>
+
+  </body>
+</html>
+
