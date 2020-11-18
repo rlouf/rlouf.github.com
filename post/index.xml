@@ -6,18 +6,15 @@
     <description>Recent content in Posts on /dev/null</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 25 Sep 2020 19:09:52 +0200</lastBuildDate>
-    
-	<atom:link href="http://rlouf.github.com/post/index.xml" rel="self" type="application/rss+xml" />
-    
-    
+    <lastBuildDate>Fri, 25 Sep 2020 19:09:52 +0200</lastBuildDate><atom:link href="http://rlouf.github.com/post/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Introducing MCX</title>
       <link>http://rlouf.github.com/post/introduce_mcx/</link>
       <pubDate>Fri, 25 Sep 2020 19:09:52 +0200</pubDate>
       
       <guid>http://rlouf.github.com/post/introduce_mcx/</guid>
-      <description>I have been working on a personal project since last February (remember, before the pandemic). I had two goals in mind at the time: learn JAX, and learn how to code a PPL. I had been using Stan and PyMC3 for years and felt some frustration at not having a good grasp of how inference was happening under the hood. This was by no means intended to be a PPL at the time, more like Colin Carrol&amp;rsquo;s MiniMC but using JAX for performance.</description>
+      <description>A simple API Why the AST? Graphical models Towards a higher order PPL Linear and batch (particle) sampling Models are programs and samplers evaluators Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo only performs well with random variables that have an unconstrained support. It may thus want to apply transformations to these variables so it is able to sample from their posterior.
+This allows other possibilities.</description>
     </item>
     
     <item>
@@ -26,7 +23,7 @@
       <pubDate>Thu, 13 Feb 2020 09:13:38 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/ppl_integrator_api/</guid>
-      <description>I have been working on a probabilistic programming library, MCX (don&amp;rsquo;t use it yet, most of the inference engine is in API prototype stage) for the past few weeks. I will write more about it soon, but the library is based on source code transformation: you express the model as a python function, and a compiler reads the function, applies the necessary transformations and outputs either a function that generates samples from this distribution, or its logpdf.</description>
+      <description>I have been working on a probabilistic programming library, MCX (don&amp;rsquo;t use it yet, most of the inference engine is in API prototype stage) for the past few weeks. The library is based on source code transformation: you express the model as a python function, and a compiler reads the function, applies the necessary transformations and outputs either a function that generates samples from this distribution, or its logpdf. The logpdf can be JIT-compiled with JAX and used for batched inference.</description>
     </item>
     
     <item>

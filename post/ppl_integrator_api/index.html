@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="generator" content="Hugo 0.74.3" />
+  <meta name="generator" content="Hugo 0.76.5" />
 
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,12 +38,11 @@
 
     <p>I have been working on a probabilistic programming library,
 <a href="https://github.com/rlouf/mcx">MCX</a> (don&rsquo;t use it yet, most of the inference
-engine is in API prototype stage) for the past few weeks. I will write more
-about it soon, but the library is based on source code transformation: you
-express the model as a python function, and a compiler reads the function,
-applies the necessary transformations and outputs either a function that
-generates samples from this distribution, or its logpdf. The logpdf can be
-JIT-compiled with JAX and used for batched inference.</p>
+engine is in API prototype stage) for the past few weeks. The library is based
+on source code transformation: you express the model as a python function, and a
+compiler reads the function, applies the necessary transformations and outputs
+either a function that generates samples from this distribution, or its logpdf.
+The logpdf can be JIT-compiled with JAX and used for batched inference.</p>
 <p>Despite the black magic involved, this scheme is convenient; it neatly separates
 the process of defining the model and that of performing inference, with python
 functions as the bridge between the two. Algorithm-specific optimizations are
@@ -51,12 +50,14 @@ done at compilation time; as a result, inference algorithms need not be aware of
 how the logpdf was generated and can execute it &ldquo;as is&rdquo;.</p>
 <p>It is even possible to use inference engines without using MCX&rsquo;s DSL: users can
 import the <code>inference</code> module in their projects and use custom-built functions
-as logpdfs. <em>Designed appropriately, MCX could be used both for its DSL and
-convenient interface with common algorithms, but also for the composability of
-its inference elements.</em></p>
-<p>As a result, there is no excuse to not make the inference engine as modular as
-is possible and its parts re-usable. So here I am, going down the rabbit hole
-inside the rabbit hole.</p>
+as logpdfs. As long at the logpdf is compatible with JAX&rsquo;s <code>jit</code> and <code>grad</code> the
+inference with work out of the box. <em>Designed appropriately, MCX could be used
+both for its DSL and convenient interface with common algorithms, but also for
+the composability of its inference elements.</em></p>
+<p>Since we wish to expose the internals to experienced users there is a strong
+incentive to make the inference engine as modular as is possible and its parts
+re-usable. This way, users can come up with combinations that are not yet
+implemented in MCX or even build their own parts.</p>
 <h2 id="hamiltonian-monte-carlo">Hamiltonian Monte Carlo</h2>
 <p>Hamiltonian Monte Carlo (HMC) methods are the cornerstone of most PPLs:
 <a href="https://probprog.github.io/anglican/">Anglican</a>,
@@ -68,9 +69,8 @@ Probability</a>,
 (someone should write about the current Cambrian explosion of PPLs!) are all
 built around variants of Hamiltonian Monte Carlo. If you don&rsquo;t already know why
 everyone is using HMC, have a look at <a href="https://arxiv.org/abs/1410.5110">Betancourt&rsquo;s article</a> for a theoretical explanation.</p>
-<p>The first expression I came up with was the following, which probably looks a
-lot like what you are used to. I use a closure to compose the different elements
-into a self-contained step function:</p>
+<p>When it comes to implementation, here is the implementation of HMC that you
+often find (I omitted the implementation of the integrator for simplicity):</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">HMCState</span>(NamedTuple):
     <span style="color:#e6db74">&#34;&#34;&#34;State on which the HMC kernel acts.
 </span><span style="color:#e6db74">
@@ -88,11 +88,11 @@ into a self-contained step function:</p>
 
 
 <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hmc_kernel</span>(
-    logpdf: Callable,
-    integrator: Callable,
-    momentum_generator: Callable,
-    kinetic_energy: Callable,
-    path_length: float,
+    potential: Callable,
+    integrator: Callable,  <span style="color:#75715e"># integrates the trajectory</span>
+    momentum_generator: Callable,  <span style="color:#75715e"># generates a momentum value</span>
+    kinetic_energy: Callable,  <span style="color:#75715e"># computes kinetic energy from momentum value</span>
+    num_integration_steps: int,
     step_size: float,
 ):
     
@@ -103,11 +103,11 @@ into a self-contained step function:</p>
 
         momentum <span style="color:#f92672">=</span> momentum_generator(key_momentum)
         position, momentum, log_prob, log_prob_grad <span style="color:#f92672">=</span> integrator(
-            logpdf,
+            potential,
             state<span style="color:#f92672">.</span>position,
             momentum,
             state<span style="color:#f92672">.</span>log_prob_grad,
-            path_length,
+            num_integration_steps,
             step_size,
         )
         new_energy <span style="color:#f92672">=</span> log_prob <span style="color:#f92672">+</span> kinetic_energy(momentum)
@@ -125,39 +125,40 @@ into a self-contained step function:</p>
 symplectic integrator. Separating <code>momentum_generator</code>, <code>kinetic_energy</code> and
 <code>integrator</code> allows you to easily generalize to Riemannian HMC, without having
 to re-define a kernel for every possibe combination.</p>
-<p>There are, however, problems with this:</p>
-<ol>
-<li>What about empirical HMC, when path lengths are drawn from an empirical
-distribution?</li>
-<li>What about <a href="https://arxiv.org/abs/1111.4246">NUTS</a> where path length is adaptively computed at each iteration?</li>
-<li>What about adaptive schemes for the step size?</li>
-</ol>
-<p>It is temptin to pass <code>step_size_generator</code> and <code>path_length_generator</code> to
-<code>hmc</code>. While it works for (1) and (3), it fails to accomodate more complex
-schemes like NUTS.</p>
+<p>But this implementation has its limits, which often cause PPLs to copy-paste a
+good portion of the code whenever a new member of the HMC family is introduced.
+In particular empirical HMC (eHMC) and NUTS where the number of integration steps
+changes between iterations. It is temptin to pass <code>step_size_generator</code> and
+<code>path_length_generator</code> to <code>hmc</code>. While this works for eHMC and algorithms with
+an adaptive step size, it fails to accomodate more complex schemes like NUTS.</p>
 <p>With hindsight, what I am about to write feels like stating the obvious: this
 design smells because it is conceptually incorrect; <em>the step size and path
-length are properties of the path integration</em>.</p>
-<p>For empirical HMC where the path length is drawn from an empirical distribution,
-this would look like:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">ehmc_integrator</span>(rng_key, state: IntegratorState):
-    step_size <span style="color:#f92672">=</span> epsilon_0  <span style="color:#75715e"># constant</span>
-    path_length <span style="color:#f92672">=</span> path_length_generator(rng_key)  <span style="color:#75715e"># returns a path length</span>
-    state <span style="color:#f92672">=</span> leapfrog(state, step_size, path_length)
-    <span style="color:#66d9ef">return</span> state
-</code></pre></div><p>And a extremely simplified version of NUTS:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">nuts_integrator</span>(rng_key, state: IntegratorState):
-    step_size <span style="color:#f92672">=</span> epsilon_0  <span style="color:#75715e"># constant</span>
-    state <span style="color:#f92672">=</span> nuts_integrator(state, step_size)  <span style="color:#75715e"># performs one leapfrog step</span>
-    <span style="color:#66d9ef">return</span> state
-</code></pre></div><p>We can now accomodate for many adaptive schemes for the step size and path
-length. Notice that the integrators are now only a function of a PRNG key and an
-integrator state; in other words they are also kernels. I saw yesterday that
-the developers of <a href="https://arxiv.org/abs/2001.05035">FunMC</a> use a similar approach.</p>
-<p>The HMC kernel now looks like:</p>
+length are not properties of the kernel, but of the path integration.</em> We can
+even go further, and separate proposals from integration. After all, both eHMC
+and NUTS do call the same integrators and there is no reason they should be
+&ldquo;trapped&rdquo; in a specific proposal.</p>
+<p>For empirical HMC where the path length is drawn from an empirical distribution
+with <code>num_steps_generator</code>, this would look like:</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">ehmc_proposal</span>(
+    step_size: float,
+    num_steps_generator: Callable,  <span style="color:#75715e"># returns a number of steps</span>
+    integrator: Callable <span style="color:#f92672">=</span> leapfrog,
+):
+
+    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">propose</span>(rng_key, state):
+        num_integration_steps <span style="color:#f92672">=</span> num_steps_generator(rng_key)
+        <span style="color:#66d9ef">for</span> _ <span style="color:#f92672">in</span> range(num_integration_steps): 
+            state <span style="color:#f92672">=</span> integrator(state, step_size)
+        <span style="color:#66d9ef">return</span> state
+      
+    <span style="color:#66d9ef">return</span> propose
+</code></pre></div><p>Note that by using a closure we can make every proposal depend only on a PRNG key
+and the chain state. In other words, they are kernels and all provide the same
+interface to the kernel. This way we can accomodate virtually any variation on
+HMC while using the same kernel. The HMC kernel now looks like:</p>
 <div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hmc_kernel</span>(
     logpdf: Callable,
-    integrator: Callable,
+    proposal: Callable,
     momentum_generator: Callable,
     kinetic_energy: Callable,
 ):
@@ -168,7 +169,7 @@ the developers of <a href="https://arxiv.org/abs/2001.05035">FunMC</a> use a sim
         key_momentum, key_uniform <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>split(rng_key)
 
         momentum <span style="color:#f92672">=</span> momentum_generator(key_momentum)
-        position, momentum, log_prob, log_prob_grad <span style="color:#f92672">=</span> integrator(
+        position, momentum, log_prob, log_prob_grad <span style="color:#f92672">=</span> proposal(
             logpdf,
             state<span style="color:#f92672">.</span>position,
             momentum,
@@ -186,7 +187,19 @@ the developers of <a href="https://arxiv.org/abs/2001.05035">FunMC</a> use a sim
         <span style="color:#66d9ef">return</span> state
 
     <span style="color:#66d9ef">return</span> step
-</code></pre></div><p>Decomposing the HMC kernel in meaningful blocks and specializing using a closure
+</code></pre></div><p>And here is a summary of the decomposition of the algorithms into independent
+parts:</p>
+<pre><code>
+          +--&gt; Momentum generator      
+          |         |              step size (generator)
+          |         v                    v
+Metric ---+      Kernel &lt;----------- Proposal  &lt;---------- Integrator
+          |         ^                    ^
+          |         |               num steps (generator)
+          +--&gt; Kinetic Energy             
+
+
+</code></pre><p>Decomposing the HMC kernel in meaningful blocks and specializing using a closure
 brings a lot of benefits:</p>
 <ul>
 <li>The logic of the kernel is more transparent;</li>
@@ -194,22 +207,21 @@ brings a lot of benefits:</p>
 (momentum and kinetic energy) and trajectory integration. We are free to use
 any symplectic integrator (2nd, 3rd, etc. order)<sup id="fnref:1"><a href="#fn:1" class="footnote-ref" role="doc-noteref">1</a></sup>, use any metric (euclidean,
 riemannian, etc.) and any variant in implementation.</li>
-<li>One can initialize a kernel with algorithms that are not in the library;</li>
-<li>We can now free to use many adaptive schemes for the parameters of the
-integrator.</li>
+<li>One can initialize a kernel with algorithms that are not in the library. These
+algorithm only need to expose the same API as the others.</li>
 </ul>
-<p>I am particularly excited at the perspective of having a module with inference
-engines decoupled to any particular PPL implementation. There is a lot of
-duplicated effort in the community (I am guilty of that too), and a central
-inference library would help in many ways:</p>
-<ol>
-<li>More pairs of eyes on the code; less bugs.</li>
-<li>People can focus on implementing different things rather than re-implementing
-NUTS over and over again;</li>
-<li>More time could be allocated to more interesting problems: designing a flexible
-interface, implementing BNNs, stochastic processes, etc.</li>
-</ol>
-<p>Wouldn&rsquo;t that be nice?</p>
+<p>A couple of examples:</p>
+<ul>
+<li>Vanilla HMC uses a Euclidean metric, a fixed step size and a fixed number of
+steps. We can use any integrator we want.</li>
+<li>empirical HMC uses a distribution for the number of integration steps, a fixed
+step size.</li>
+<li>NUTS uses a fixed step size, but a complex internal logic to determine the
+number of integration steps.</li>
+<li>For all the above you can switch the metric to a Riemannian metric and use the
+appropriate integrator.</li>
+</ul>
+<p>This makes development easier and less error-prone.</p>
 <section class="footnotes" role="doc-endnotes">
 <hr>
 <ol>

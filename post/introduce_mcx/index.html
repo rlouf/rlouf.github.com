@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="generator" content="Hugo 0.74.3" />
+  <meta name="generator" content="Hugo 0.76.5" />
 
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -36,13 +36,30 @@
       <time class="post-date" datetime="2020-09-25 19:09:52 CEST">25 Sep 2020</time>
     </header>
 
-    <p>I have been working on a personal project since last February (remember, before
-the pandemic). I had two goals in mind at the time: learn JAX, and learn how to
-code a PPL. I had been using Stan and PyMC3 for years and felt some frustration
-at not having a good grasp of how inference was happening under the hood. This
-was by no means intended to be a PPL at the time, more like Colin Carrol&rsquo;s
-<a href="">MiniMC</a> but using JAX for performance.</p>
-<p>Here are the requirements:</p>
+    <h1 id="a-simple-api">A simple API</h1>
+<h2 id="why-the-ast">Why the AST?</h2>
+<h2 id="graphical-models">Graphical models</h2>
+<h2 id="towards-a-higher-order-ppl">Towards a higher order PPL</h2>
+<h1 id="linear-and-batch-particle-sampling">Linear and batch (particle) sampling</h1>
+<h1 id="models-are-programs-and-samplers-evaluators">Models are programs and samplers evaluators</h1>
+<p>Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo
+only performs well with random variables that have an unconstrained support. It
+may thus want to apply transformations to these variables so it is able to
+sample from their posterior.</p>
+<p>This allows other possibilities. When training bayesian neural networks, we may
+actually want to train the network with gradient descent while the
+inputs/outputs are random variables that can be sampled. We can thus imagine
+having evaluators that are mere optimizers. In this case it would change the
+neural network from a bayesian one to a regular neural network.</p>
+<p>When I started MCX in February my main goal was learning: learning Google&rsquo;s
+framework JAX and learn how to code a PPL. JAX looked appealing with its
+numpy-style API, no fuss jit-compilation, autodiff and vectorization. On the
+other hand, I had been using Stan and PyMC3 for years but did not have a good
+grasp of how inference was happening under the hood. And I have this default of
+not feeling comfortable using tools I do not fully understand.</p>
+<p>MCX was by no means intended to be a PPL at the time, more like Colin Carrol&rsquo;s
+<a href="">MiniMC</a> but using JAX instead of Numpy.</p>
+<p>Here were the requirements:</p>
 <ol>
 <li>A simple API. We all love PyMC3&rsquo;s API. It has all what we need, and just what
 we need. Except having to repeat the names of variables.</li>
@@ -68,9 +85,10 @@ only one. There is thus a tension between the above notations and the
 programming language. This is a problem of two languages: how do you express in
 a programming language an abstract concept?</p>
 <p>PPLs have different ways to resolve this tension: some build a graph, some use
-effect handlers, others abuse some features of programming language. MCX&rsquo;s
-stance is much like Stan&rsquo;s: what if we created our own language that can then be
-compiled in different objects depending on the context?</p>
+effect handlers, others use a non-standard intepretation of the programming
+language (PyMC3&rsquo;s use of the context manager for instance). MCX&rsquo;s stance is much
+like Stan&rsquo;s: what if we created our own language that can then be compiled in
+different objects depending on the context?</p>
 <p>The way we deal with this is: if we are going to write a language it might as
 well look like the mathematical model. So we use Python&rsquo;s dynamic AST
 manipulation features. So the above model would look like:</p>
@@ -87,10 +105,13 @@ graph is stored in the model (which is actually a class).</p>
 <p>Models are distributions, so they implement <code>sample</code> and <code>logpdf</code> functions.
 When you call either of these, two different <strong>compilers</strong> are called and
 traverse the graph to build the necessary functions.</p>
-<p>The models&rsquo; graph can be accessed interactively. It can be changed in place. It
+<h1 id="models-are-functions-they-are-programs">Models are functions, they are programs</h1>
+<h1 id="a-turing-complete-language">A Turing-complete language</h1>
+<p>The models' graph can be accessed interactively. It can be changed in place. It
 is possible to set the value of one node and see how it impacts the others, very
 useful to debug without re-writing the whole in scipy!</p>
-<p>Having a graph is wonderful: it means that you can symbolically manipulate your
+<pre><code>new_graph = simplify_conjugacy(graph)
+</code></pre><p>Having a graph is wonderful: it means that you can symbolically manipulate your
 model. You can detect conjugacies and using conjugate distibution to optimize
 sampling, reparametrization is trivial to do, etc. Manipulating the graph is
 pretty much akin to manipulating the mathematical object.</p>
@@ -102,6 +123,9 @@ pretty much akin to manipulating the mathematical object.</p>
 
 </code></pre><p>All this happens in <em>pure python</em>, there is no framework involved. We do use
 NetworkX to build and manipulate graphs for convenience, but could do without.</p>
+<p>Currently the graph we compile is a static graph. It only contains the random
+variables and transformation. As such it can only handle a fixed number of
+random variables. This, however, is a strong</p>
 <p>The advantage of compiling pure python function is that it nicely decouples the
 modeling language from inference. Any inference library that accepts python
 functions (with jax constructs) could use the functions used by the DSL. So far
@@ -144,7 +168,20 @@ complicated as implementing your own transition kernel using the available
 blocks or blocks you have programmed.</p>
 <p>MCX comes with sane defaults (runtimes and pre-defined programs), but has many
 trap doors that allow you to tinker with the lower level.</p>
-<h2 id="carving-mcmc-at-its-joints">Carving MCMC at its joints</h2>
+<h3 id="carving-mcmc-at-its-joints">Carving MCMC at its joints</h3>
+<p>In order to provide composable inference you need to tear existing algorithms
+apart, extract the specific from the general until you have independent pieces
+that work well together. This has two advantages:</p>
+<ol>
+<li>The biggest is development time. It is not rare to see a lot of duplicated
+code in libraries that implement HMC and NUTS. In MCX it is &ldquo;just&rdquo; a matter
+of creating program that replaces the HMC proposal with the NUTS proposal.
+You can even add empirical HMC by replacing the proposal. Implementing
+Riemannian HMC is just a matter of switching the metric and integrators. You
+only need to write the parts that are specific to the algorithms.</li>
+<li>It allows advanced users to take all these parts and create a program you
+would have never thought of.</li>
+</ol>
 <h2 id="give-me-a-million-chains">Give me a million chains</h2>
 
 
