@@ -177,7 +177,7 @@ and compute the function&rsquo;s output. Apart from this we can draw samples fro
 the generative distribution like we would the model:</p>
 <pre><code>&gt;&gt;&gt; evaluated_model(rng_key, x_data)
 &gt;&gt;&gt; seeded = mcx.seed(evaluated_model, rng_key)
-&gt;&gt;&gt; mcx.sample_predictive(seeded, (x_data,), num_samples=100)
+&gt;&gt;&gt; mcx.sample_predictive(rng_key, evaluate_model, (x_data,), num_samples=100)
 </code></pre><p>Unlike the original model, however, the evaluated program is not a distribution.</p>
 <h1 id="models-are-programs-and-samplers-evaluators">Models are programs and samplers evaluators</h1>
 <p>Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo
