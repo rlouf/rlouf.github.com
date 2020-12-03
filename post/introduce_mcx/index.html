@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="generator" content="Hugo 0.76.5" />
+  <meta name="generator" content="Hugo 0.78.2" />
 
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,10 +37,195 @@
     </header>
 
     <h1 id="a-simple-api">A simple API</h1>
-<h2 id="why-the-ast">Why the AST?</h2>
-<h2 id="graphical-models">Graphical models</h2>
-<h2 id="towards-a-higher-order-ppl">Towards a higher order PPL</h2>
-<h1 id="linear-and-batch-particle-sampling">Linear and batch (particle) sampling</h1>
+<p>The difficulty of designing a user-friendly API for a Probabilistic Programming
+Language stems for the deceiving simplicity of the mathematical representation
+of graphical models:</p>
+<pre><code>a ~ Beta(1, 2)
+b ~ Binomial(a)
+</code></pre><p>From this representation we need to extract at least two objects: one that
+produces samples form the prior distribution, and the multivariate
+log-probability density conditioned on the observe data. We have a one-to-many
+relationship between the notation and what we need from it in practice, and this
+one-to-many relationship does not have related constructs in programming
+languages.</p>
+<p>Of course we can implement these two objects separately. This is actually what
+we do with &ldquo;elementary&rdquo; distributions like the Beta, Dirichlet, Multvariate
+Normal, etc. distributions. In many PPLs they are implemented as a single object
+that implements the <code>sample</code> and <code>logpdf</code> distribution. This is however tedious
+with complex graphical models. But it should not be in the sense that these
+models are composed of elementary distibutions. We would like a language that
+allows us to write the combination of such elementary distributions and returns
+its logpdf and sampling distribution.</p>
+<p>Programming language are different: one set of instructions does one thing and
+only one. There is thus a tension between the above notations and the
+programming language. This is a problem of two languages: how do you express in
+a programming language an abstract concept?</p>
+<p>PPLs have different ways to resolve this tension: some build a graph, some use
+effect handlers, others use a non-standard intepretation of the programming
+language (PyMC3&rsquo;s use of the context manager for instance). MCX&rsquo;s stance is much
+like Stan&rsquo;s: what if we created our own language, close to the mathematical
+expression, that can then be compiled in a logpdf and a sampling function?</p>
+<p>Unlike Stan, we would like this language to be embedded in python. To benefit
+from its autodiff, acceleration and array manipulation libraries, and the
+integration with the rest of the machine learning ecosystem. MCX should thus
+be a superset a python: allow every operation python allows, with an added
+construct. Having posed the problem in these terms there is only one solution:
+defining a new syntax and modify this syntax at runtime using Python&rsquo;s
+introspection abilities.</p>
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#a6e22e">@mcx.model</span>
+<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">beta_binomial</span>():
+  a <span style="color:#f92672">&lt;~</span> Beta(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>)
+  b <span style="color:#f92672">&lt;~</span> Binomial(a)
+  <span style="color:#66d9ef">return</span> b
+</code></pre></div><p>which is syntactically correct python, but wouldn&rsquo;t do anything good without the
+<code>@mcx.model</code> decorator. What happens when you call the function is that its
+content is being parsed: random variables and distributions are identified as
+well as their dependencies. And this is the second important thing: they are
+parsed into a directed graph, another representation of the equations above. The
+graph is stored in the model (which is actually a class).</p>
+<p>Models are distributions, so they implement <code>sample</code> and <code>logpdf</code> functions.
+When you call either of these, two different <strong>compilers</strong> are called and
+traverse the graph to build the necessary functions.</p>
+<h1 id="models-are-first-and-foremost-generative-functions">Models are first and foremost generative functions</h1>
+<h2 id="a-tail-of-4-distributions">A tail of 4 distributions</h2>
+<p>The duality between multivariate distribution and generative function usually
+implies the existence of 4 different distribution in PPLs. It is very important
+to understand their difference when implementing the API.</p>
+<p>Those related to the model interpreted as a multivariate distribution:</p>
+<ul>
+<li>The prior distribution is related to the multivariate distribution
+interpretation. It is the distribution parametrized by the model&rsquo;s
+random variables, given the model&rsquo;s parameters.</li>
+<li>The posterior distribution is the multivariate distribution of the
+model&rsquo;s parameters conditioned on the value of some of the model&rsquo;s
+variables.</li>
+</ul>
+<p>And those relatied to the model interpreted as a generative function:</p>
+<ul>
+<li>The prior predictive distribution, which is the distribution of the
+returned value of the model when the random variables' values are
+drawn from their prior distribution.</li>
+<li>The posterior predictive distribution, which is the distribution of
+the returned value assuming that the random variables' values are
+drawn from their posterior distribution.</li>
+</ul>
+<p>In MCX it is assumed that both are predictive distributions of different
+objects: the model in the first case, the evaluated model in the second model.
+While the model is both a multivariate distribution and a generative function it
+can be evaluated. A generative function is only associated with a predictive
+distribution.</p>
+<p>Writing a model as a function is intuitive: most bayesian models are generative
+models. Given input values and parameters they return other values that can be
+observed. While MCX models also represent a distribution, in the API we treat
+them first as generative functions.</p>
+<p>Calling the generative function should return a different value each time it is
+called with a different value of <code>rng_key</code>:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>linear_regression(rng_key, x)
+2.3</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Note the apparition of <code>rng_key</code> between the definition and the call here,
+necessary because of JAX&rsquo;s pseudo-random number generation system. It can be
+cumbersome to specify a different <code>rng_key</code> at each call so we can handle the
+splitting automatically using:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>fn = mcx.seed(linear_regression, rng_key)
+fn(10)
+34.5
+fn(10)
+52.1</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p><code>linear_regression</code> is a regular function so we can use JAX&rsquo;s vmap construct to
+obtain a fixed number of samples from the prior predictive distribution.</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>keys = jax.random.split(rng_key, num_samples)
+jax.vmap(linear_regression, in_axes=(0, None))(keys, x_data)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Again, for convenience, we provide a <code>sample_predictive</code> function, which draws
+samples from the function&rsquo;s generative distribution.</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>mcx.sample_predictive(linear_regression, (x_data,), num_samples=1000)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p><strong>Interacting with the distribution</strong></p>
+<p>The generative function implicitly defines a multivariate distribution over the
+model&rsquo;s random variables. We include utilities to sample from this distribution.
+To sample from the prior distribution, we implicitly assume the evaluator is the
+forward sampler and thus:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>sampler = mcx.sampler(rng_key, linear_regression, (x_data,))
+samples = sampler.run(1000)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Since forward sampling can be an efficient way to debug a model, we also
+introduce a convenient <code>forward</code> method to the model:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>linear_regression.forward(rng_key, x_data)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>To sample from the posterior distribution we need to specify which variables
+we are conditioning the distribution on (the observed variables) and the
+kernel we use to sample from the posterior:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>sampler = mcx.sampler(
+&hellip;               rng_key,
+&hellip;               linear_regression,
+&hellip;               (x_data,),
+&hellip;               {&lsquo;preds&rsquo;: y_data},
+&hellip;               HMC(100),
+&hellip;           )
+&hellip; sampler.run(1000)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p><strong>Posterior predictive</strong></p>
+<p>Once the model&rsquo;s posterior distribution has been sampled we can define a new
+generative function that is the original function evaluated at the samples from
+the posterior distribution.</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>evaluated_model = mcx.evaluate(linear_regression, trace)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>When sampling from the predictive distribution, instead of drawing a value for
+each variable from its prior distribution, we sample one position of the chains
+and compute the function&rsquo;s output. Apart from this we can draw samples from
+the generative distribution like we would the model:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>evaluated_model(rng_key, x_data)
+seeded = mcx.seed(evaluated_model, rng_key)
+mcx.sample_predictive(seeded, (x_data,), num_samples=100)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>Unlike the original model, however, the evaluated program is not a distribution.</p>
 <h1 id="models-are-programs-and-samplers-evaluators">Models are programs and samplers evaluators</h1>
 <p>Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo
 only performs well with random variables that have an unconstrained support. It
@@ -71,41 +256,6 @@ computer for hours to get samples. As for the chain, they are mostly cool
 right now, but I have an idea of how to exploit many, many chains.</li>
 <li>Modularity.</li>
 </ol>
-<p>The difficulty of designing a user-friendly API for a Probabilistic Programming
-Language stems for the trumping simplicity of the way graphical models are
-presented mathematically:</p>
-<pre><code>a ~ Beta(1, 2)
-b ~ Binomial(a)
-</code></pre><p>From this simplistic representation we need to extract at least two objects: one
-that produces samples form the prior distribution, and the multivariate
-log-probability density conditioned on the observe data. We have a one-to-many
-relationship between the notation and what we want to extract from it.</p>
-<p>Programming language are different: one set of instructions does one thing and
-only one. There is thus a tension between the above notations and the
-programming language. This is a problem of two languages: how do you express in
-a programming language an abstract concept?</p>
-<p>PPLs have different ways to resolve this tension: some build a graph, some use
-effect handlers, others use a non-standard intepretation of the programming
-language (PyMC3&rsquo;s use of the context manager for instance). MCX&rsquo;s stance is much
-like Stan&rsquo;s: what if we created our own language that can then be compiled in
-different objects depending on the context?</p>
-<p>The way we deal with this is: if we are going to write a language it might as
-well look like the mathematical model. So we use Python&rsquo;s dynamic AST
-manipulation features. So the above model would look like:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#a6e22e">@mcx.model</span>
-<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">beta_binomial</span>():
-  a <span style="color:#f92672">&lt;~</span> Beta(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>)
-  b <span style="color:#f92672">&lt;~</span> Binomial(a)
-</code></pre></div><p>which is syntactically correct python, but wouldn&rsquo;t do anything good without the
-<code>@mcx.model</code> decorator. What happens when you call the function is that its
-content is being parsed: random variables and distributions are identified as
-well as their dependencies. And this is the second important thing: they are
-parsed into a directed graph, another representation of the equations above. The
-graph is stored in the model (which is actually a class).</p>
-<p>Models are distributions, so they implement <code>sample</code> and <code>logpdf</code> functions.
-When you call either of these, two different <strong>compilers</strong> are called and
-traverse the graph to build the necessary functions.</p>
-<h1 id="models-are-functions-they-are-programs">Models are functions, they are programs</h1>
 <h1 id="a-turing-complete-language">A Turing-complete language</h1>
 <p>The models' graph can be accessed interactively. It can be changed in place. It
 is possible to set the value of one node and see how it impacts the others, very

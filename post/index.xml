@@ -13,8 +13,8 @@
       <pubDate>Fri, 25 Sep 2020 19:09:52 +0200</pubDate>
       
       <guid>http://rlouf.github.com/post/introduce_mcx/</guid>
-      <description>A simple API Why the AST? Graphical models Towards a higher order PPL Linear and batch (particle) sampling Models are programs and samplers evaluators Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo only performs well with random variables that have an unconstrained support. It may thus want to apply transformations to these variables so it is able to sample from their posterior.
-This allows other possibilities.</description>
+      <description>A simple API The difficulty of designing a user-friendly API for a Probabilistic Programming Language stems for the deceiving simplicity of the mathematical representation of graphical models:
+a ~ Beta(1, 2) b ~ Binomial(a) From this representation we need to extract at least two objects: one that produces samples form the prior distribution, and the multivariate log-probability density conditioned on the observe data. We have a one-to-many relationship between the notation and what we need from it in practice, and this one-to-many relationship does not have related constructs in programming languages.</description>
     </item>
     
     <item>
