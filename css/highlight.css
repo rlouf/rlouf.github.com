@@ -19,8 +19,10 @@ highlight.js
 .hljs {
   display: block;
   overflow-x: auto;
-  padding: 0.5em;
+  padding: 0.8em;
   background: #2E3440;
+  border:1px solid #afcde3;
+  border-radius: 16px;
 }
 
 .hljs,

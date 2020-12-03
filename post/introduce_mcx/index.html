@@ -72,12 +72,12 @@ be a superset a python: allow every operation python allows, with an added
 construct. Having posed the problem in these terms there is only one solution:
 defining a new syntax and modify this syntax at runtime using Python&rsquo;s
 introspection abilities.</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#a6e22e">@mcx.model</span>
-<span style="color:#66d9ef">def</span> <span style="color:#a6e22e">beta_binomial</span>():
-  a <span style="color:#f92672">&lt;~</span> Beta(<span style="color:#ae81ff">1</span>, <span style="color:#ae81ff">2</span>)
-  b <span style="color:#f92672">&lt;~</span> Binomial(a)
-  <span style="color:#66d9ef">return</span> b
-</code></pre></div><p>which is syntactically correct python, but wouldn&rsquo;t do anything good without the
+<pre><code>@mcx.model
+def beta_binomial():
+  a &lt;~ Beta(1, 2)
+  b &lt;~ Binomial(a)
+  return b
+</code></pre><p>which is syntactically correct python, but wouldn&rsquo;t do anything good without the
 <code>@mcx.model</code> decorator. What happens when you call the function is that its
 content is being parsed: random variables and distributions are identified as
 well as their dependencies. And this is the second important thing: they are
@@ -117,60 +117,68 @@ distribution.</p>
 models. Given input values and parameters they return other values that can be
 observed. While MCX models also represent a distribution, in the API we treat
 them first as generative functions.</p>
-<p>Calling the generative function should return a different value each time it is
+<p>Consider the following linear regression model:</p>
+<pre><code>@mcx.model
+def linear_regression(x, lmba=1.):
+    scale &lt;~ Exponential(lmbda)
+    coef &lt;~ Normal(np.zeros(x.shape[-1]), 1)
+    y = np.dot(x, coef)
+    preds &lt;~ Normal(y, scale)
+    return preds
+</code></pre><p>Calling the generative function should return a different value each time it is
 called with a different value of <code>rng_key</code>:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> linear_regression(rng_key, x)
-<span style="color:#ae81ff">2.3</span>
-</code></pre></div><p>Note the apparition of <code>rng_key</code> between the definition and the call here,
+<pre><code>&gt;&gt;&gt; linear_regression(rng_key, x)
+2.3
+</code></pre><p>Note the apparition of <code>rng_key</code> between the definition and the call here,
 necessary because of JAX&rsquo;s pseudo-random number generation system. It can be
 cumbersome to specify a different <code>rng_key</code> at each call so we can handle the
 splitting automatically using:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> fn <span style="color:#f92672">=</span> mcx<span style="color:#f92672">.</span>seed(linear_regression, rng_key)
-<span style="color:#f92672">&gt;&gt;&gt;</span> fn(<span style="color:#ae81ff">10</span>)
-<span style="color:#ae81ff">34.5</span>
-<span style="color:#f92672">&gt;&gt;&gt;</span> fn(<span style="color:#ae81ff">10</span>)
-<span style="color:#ae81ff">52.1</span>
-</code></pre></div><p><code>linear_regression</code> is a regular function so we can use JAX&rsquo;s vmap construct to
+<pre><code>&gt;&gt;&gt; fn = mcx.seed(linear_regression, rng_key)
+&gt;&gt;&gt; fn(10)
+34.5
+&gt;&gt;&gt; fn(10)
+52.1
+</code></pre><p><code>linear_regression</code> is a regular function so we can use JAX&rsquo;s vmap construct to
 obtain a fixed number of samples from the prior predictive distribution.</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> keys <span style="color:#f92672">=</span> jax<span style="color:#f92672">.</span>random<span style="color:#f92672">.</span>split(rng_key, num_samples)
-<span style="color:#f92672">&gt;&gt;&gt;</span> jax<span style="color:#f92672">.</span>vmap(linear_regression, in_axes<span style="color:#f92672">=</span>(<span style="color:#ae81ff">0</span>, None))(keys, x_data)
-</code></pre></div><p>Again, for convenience, we provide a <code>sample_predictive</code> function, which draws
+<pre><code>&gt;&gt;&gt; keys = jax.random.split(rng_key, num_samples)
+&gt;&gt;&gt; jax.vmap(linear_regression, in_axes=(0, None))(keys, x_data)
+</code></pre><p>Again, for convenience, we provide a <code>sample_predictive</code> function, which draws
 samples from the function&rsquo;s generative distribution.</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> mcx<span style="color:#f92672">.</span>sample_predictive(linear_regression, (x_data,), num_samples<span style="color:#f92672">=</span><span style="color:#ae81ff">1000</span>)
-</code></pre></div><p><strong>Interacting with the distribution</strong></p>
+<pre><code>&gt;&gt;&gt; mcx.sample_predictive(linear_regression, (x_data,), num_samples=1000)
+</code></pre><p><strong>Interacting with the distribution</strong></p>
 <p>The generative function implicitly defines a multivariate distribution over the
 model&rsquo;s random variables. We include utilities to sample from this distribution.
 To sample from the prior distribution, we implicitly assume the evaluator is the
 forward sampler and thus:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> sampler <span style="color:#f92672">=</span> mcx<span style="color:#f92672">.</span>sampler(rng_key, linear_regression, (x_data,))
-<span style="color:#f92672">&gt;&gt;&gt;</span> samples <span style="color:#f92672">=</span> sampler<span style="color:#f92672">.</span>run(<span style="color:#ae81ff">1000</span>)
-</code></pre></div><p>Since forward sampling can be an efficient way to debug a model, we also
+<pre><code>&gt;&gt;&gt; sampler = mcx.sampler(rng_key, linear_regression, (x_data,))
+&gt;&gt;&gt; samples = sampler.run(1000)
+</code></pre><p>Since forward sampling can be an efficient way to debug a model, we also
 introduce a convenient <code>forward</code> method to the model:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> linear_regression<span style="color:#f92672">.</span>forward(rng_key, x_data)
-</code></pre></div><p>To sample from the posterior distribution we need to specify which variables
+<pre><code>&gt;&gt;&gt; linear_regression.forward(rng_key, x_data)
+</code></pre><p>To sample from the posterior distribution we need to specify which variables
 we are conditioning the distribution on (the observed variables) and the
 kernel we use to sample from the posterior:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> sampler <span style="color:#f92672">=</span> mcx<span style="color:#f92672">.</span>sampler(
-<span style="color:#f92672">...</span>               rng_key,
-<span style="color:#f92672">...</span>               linear_regression, 
-<span style="color:#f92672">...</span>               (x_data,),
-<span style="color:#f92672">...</span>               {<span style="color:#e6db74">&#39;preds&#39;</span>: y_data},
-<span style="color:#f92672">...</span>               HMC(<span style="color:#ae81ff">100</span>),
-<span style="color:#f92672">...</span>           )
-<span style="color:#f92672">...</span> sampler<span style="color:#f92672">.</span>run(<span style="color:#ae81ff">1000</span>)
-</code></pre></div><p><strong>Posterior predictive</strong></p>
+<pre><code>&gt;&gt;&gt; sampler = mcx.sampler(
+...               rng_key,
+...               linear_regression, 
+...               (x_data,),
+...               {'preds': y_data},
+...               HMC(100),
+...           )
+... sampler.run(1000)
+</code></pre><p><strong>Posterior predictive</strong></p>
 <p>Once the model&rsquo;s posterior distribution has been sampled we can define a new
 generative function that is the original function evaluated at the samples from
 the posterior distribution.</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> evaluated_model <span style="color:#f92672">=</span> mcx<span style="color:#f92672">.</span>evaluate(linear_regression, trace)
-</code></pre></div><p>When sampling from the predictive distribution, instead of drawing a value for
+<pre><code>&gt;&gt;&gt; evaluated_model = mcx.evaluate(linear_regression, trace)
+</code></pre><p>When sampling from the predictive distribution, instead of drawing a value for
 each variable from its prior distribution, we sample one position of the chains
 and compute the function&rsquo;s output. Apart from this we can draw samples from
 the generative distribution like we would the model:</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-python" data-lang="python"><span style="color:#f92672">&gt;&gt;&gt;</span> evaluated_model(rng_key, x_data)
-<span style="color:#f92672">&gt;&gt;&gt;</span> seeded <span style="color:#f92672">=</span> mcx<span style="color:#f92672">.</span>seed(evaluated_model, rng_key)
-<span style="color:#f92672">&gt;&gt;&gt;</span> mcx<span style="color:#f92672">.</span>sample_predictive(seeded, (x_data,), num_samples<span style="color:#f92672">=</span><span style="color:#ae81ff">100</span>)
-</code></pre></div><p>Unlike the original model, however, the evaluated program is not a distribution.</p>
+<pre><code>&gt;&gt;&gt; evaluated_model(rng_key, x_data)
+&gt;&gt;&gt; seeded = mcx.seed(evaluated_model, rng_key)
+&gt;&gt;&gt; mcx.sample_predictive(seeded, (x_data,), num_samples=100)
+</code></pre><p>Unlike the original model, however, the evaluated program is not a distribution.</p>
 <h1 id="models-are-programs-and-samplers-evaluators">Models are programs and samplers evaluators</h1>
 <p>Evaluators are free to modify the graph to their liking. Hamiltonian Monte Carlo
 only performs well with random variables that have an unconstrained support. It
@@ -201,7 +209,7 @@ computer for hours to get samples. As for the chain, they are mostly cool
 right now, but I have an idea of how to exploit many, many chains.</li>
 <li>Modularity.</li>
 </ol>
-<h1 id="a-turing-complete-language">A Turing-complete language</h1>
+<h1 id="graph-as-in-graphical-model">&lsquo;Graph&rsquo; as in Graphical model</h1>
 <p>The models' graph can be accessed interactively. It can be changed in place. It
 is possible to set the value of one node and see how it impacts the others, very
 useful to debug without re-writing the whole in scipy!</p>
