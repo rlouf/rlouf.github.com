@@ -9,12 +9,12 @@
     <lastBuildDate>Fri, 25 Sep 2020 19:09:52 +0200</lastBuildDate><atom:link href="http://rlouf.github.com/post/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Introducing MCX</title>
-      <link>http://rlouf.github.com/post/introduce_mcx/</link>
+      <link>http://rlouf.github.com/post/mcx_introducing/</link>
       <pubDate>Fri, 25 Sep 2020 19:09:52 +0200</pubDate>
       
-      <guid>http://rlouf.github.com/post/introduce_mcx/</guid>
-      <description>A simple API The difficulty of designing a user-friendly API for a Probabilistic Programming Language stems for the deceiving simplicity of the mathematical representation of graphical models:
-a ~ Beta(1, 2) b ~ Binomial(a) From this representation we need to extract at least two objects: one that produces samples form the prior distribution, and the multivariate log-probability density conditioned on the observe data. We have a one-to-many relationship between the notation and what we need from it in practice, and this one-to-many relationship does not have related constructs in programming languages.</description>
+      <guid>http://rlouf.github.com/post/mcx_introducing/</guid>
+      <description>Designing a user-friendly API for a Probabilistic Programming Language (PPLs) is cursed by the deceiving simplicity of the mathematical representation of graphical models. Take a simple Beta-Binomial model:
+p ~ Beta(1, 2) b ~ Binomial(p) Looking at these equations you are able to comprehend what they represent, and their consequences. But these equations are only descriptive, they do not allow us to compute anything. To manipulate these models in a useful way we need to extract at least two different representations of this object: one that draws samples form the prior joint distribution, and the log-probability density function.</description>
     </item>
     
     <item>
@@ -23,7 +23,8 @@ a ~ Beta(1, 2) b ~ Binomial(a) From this representation we need to extract at le
       <pubDate>Thu, 13 Feb 2020 09:13:38 +0100</pubDate>
       
       <guid>http://rlouf.github.com/post/ppl_integrator_api/</guid>
-      <description>I have been working on a probabilistic programming library, MCX (don&amp;rsquo;t use it yet, most of the inference engine is in API prototype stage) for the past few weeks. The library is based on source code transformation: you express the model as a python function, and a compiler reads the function, applies the necessary transformations and outputs either a function that generates samples from this distribution, or its logpdf. The logpdf can be JIT-compiled with JAX and used for batched inference.</description>
+      <description>Update (20/12/2020): MCX’s inference core is being moved to BlackJAX, a joint project with the Numpyro and PyMC devs.
+I have been working on a probabilistic programming library, MCX (don&amp;rsquo;t use it yet, most of the inference engine is in API prototype stage) for the past few weeks. The library is based on source code transformation: you express the model as a python function, and a compiler reads the function, applies the necessary transformations and outputs either a function that generates samples from this distribution, or its logpdf.</description>
     </item>
     
     <item>
@@ -44,6 +45,15 @@ The code necessary to reproduce the results can be found here.</description>
       <guid>http://rlouf.github.com/post/growth-model/</guid>
       <description>A popular set of metrics against which growth of applications can be measured is the &amp;ldquo;pirate metrics&amp;rdquo;, or AARRR metrics:
  Acquisition: the number of users who get in your application every day; Activation: the proportion of these users who perform a meaningful action. For a music streaming app it could be to play at least one song entirely. For a food delivery service, placing an order; Retention: the proportion of users who are still there after 1, 7, 30 days, etc1; Referral: The proportion of users who refer the application to potential users; Revenue: the proportion of users who pay for your service.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>http://rlouf.github.com/post/grief/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>http://rlouf.github.com/post/grief/</guid>
+      <description>You&amp;rsquo;ve never really paid attention to textures before. Not until now, sat on the floor of the hospital. Obstetrics, deafening neon lights and that green, speckled linoleum. Who could have guess it was that soft on touch? You press on it with your arched fingers, to find balance. There’s a scratch running under your right index. It is sore from biting your nails to the skin. The pain grounds you, so you don’t move.</description>
     </item>
     
   </channel>

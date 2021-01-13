@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="generator" content="Hugo 0.78.2" />
+  <meta name="generator" content="Hugo 0.80.0" />
 
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -123,7 +123,7 @@ frameworks.</li>
 
     log_probs <span style="color:#f92672">=</span> norm(loc, scale)<span style="color:#f92672">.</span>logpdf(x)
 
-    <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span>logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">-</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
+    <span style="color:#66d9ef">return</span> logsumexp(np<span style="color:#f92672">.</span>log(weights) <span style="color:#f92672">+</span> log_probs, axis<span style="color:#f92672">=</span><span style="color:#ae81ff">0</span>)
 </code></pre></div><h2 id="numpy">Numpy</h2>
 <p>Colin Carroll&rsquo;s <a href="https://github.com/ColCarroll/minimc">MiniMC</a> has the simplest
 and most readable implementations of Random Walk Metropolis and Hamiltonian
